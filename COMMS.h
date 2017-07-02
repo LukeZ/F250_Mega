@@ -11,7 +11,7 @@
 
 #define CMD_TEMP_POSITIVE               0x2C   // 44    Positive temperature value (saves us from needing to send the sign)
 #define CMD_TEMP_NEGATIVE               0x2D   // 45    Negative temperature value (saves us from needing to send the sign)
-#define CMD_TEMP_LOST                   0x2E   // 46    Command gets sent if a sensor is lost
+#define CMD_TEMP_LOST                   0x2E   // 46    Command gets sent if a sensor is lost, this lets the display not to rely on the last reading forever. Next time a temp is sent means it has been found again. 
 #define CMD_HAM_ON                      0x2F   // 47    When the Ham is on, the CB is off. The Teensy knows this, so sending one or the other command accomplishes the same thing. 
 #define CMD_CB_ON                       0x30   // 48    When the CB is on, the Ham is off. The Teensy knows this, so sending one or the other command accomplishes the same thing. 
 #define CMD_FUEL_PUMP_ON                0x31   // 49

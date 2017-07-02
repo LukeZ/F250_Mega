@@ -14,7 +14,7 @@ void StartVoltageReadings()
     if (TimerID_VoltageSensorCheck == 0) TimerID_VoltageSensorCheck = timer.setInterval(VOLTAGE_CHECK_FREQ, UpdateVoltage);
     else if (timer.isEnabled(TimerID_VoltageSensorCheck) == false) timer.enable(TimerID_VoltageSensorCheck);     
 
-    Serial.println(F("Voltage Readings Started"));
+    if (DEBUG) DebugSerial->println(F("Voltage Readings Started"));
 }
 
 void PauseVoltageReadings()
@@ -22,7 +22,7 @@ void PauseVoltageReadings()
     if (TimerID_VoltageSender > 0)      timer.disable(TimerID_VoltageSender);           // Pause the routine submission of voltage data to the display
     if (TimerID_VoltageSensorCheck > 0) timer.disable(TimerID_VoltageSensorCheck);      // Pause the routine update of averaged voltage readings
     
-    Serial.println(F("Voltage Readings Paused"));
+    if (DEBUG) DebugSerial->println(F("Voltage Readings Paused"));
 }
 
 float MeasureVoltage(void)
@@ -50,12 +50,15 @@ void SendVoltageInfo()
                                                                                         // and anyway the sensor will saturate at ~20 volts. 
     
     SendDisplay(CMD_VOLTAGE, iSendVoltage);                                             // Chips ahoy! 
-    
-    Serial.print(F("Battery voltage: ")); 
-    Serial.print(BattVoltage, 1);
-    Serial.print(F(" ("));
-    Serial.print(iSendVoltage);
-    Serial.println(F(")"));     
+
+    if (DEBUG)
+    {
+        DebugSerial->print(F("Battery voltage: ")); 
+        DebugSerial->print(BattVoltage, 1);
+        DebugSerial->print(F(" ("));
+        DebugSerial->print(iSendVoltage);
+        DebugSerial->println(F(")"));     
+    }        
 }
 
 

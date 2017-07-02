@@ -18,7 +18,7 @@ void StartTempReadings(void)
         if (TimerID_TempSensorCheck == 0) TimerID_TempSensorCheck = timer.setInterval(TEMP_SENSOR_CHECK_FREQ, SetupOneWireSensors);
         else if (timer.isEnabled(TimerID_TempSensorCheck) == false) timer.enable(TimerID_TempSensorCheck); 
     }
-    Serial.println(F("Temp Readings Started"));
+    if (DEBUG) DebugSerial->println(F("Temp Readings Started"));
 }
 
 void PauseTempReadings(void)
@@ -26,7 +26,7 @@ void PauseTempReadings(void)
     TempHandlerEnabled = false;                                                 // Disable the handler that takes readings
     if (TimerID_TempSender > 0)      timer.disable(TimerID_TempSender);         // Pause the routine submission of temperature data to the display
     if (TimerID_TempSensorCheck > 0) timer.disable(TimerID_TempSensorCheck);    // Pause the routine bus check to detect devices
-    Serial.println(F("Temp Readings Paused"));
+    if (DEBUG) DebugSerial->println(F("Temp Readings Paused"));
 }
 
 /* Here we try to detect and identify the connected sensors */
@@ -117,19 +117,25 @@ _tempsensor *ts;
         {
             ts->present = true; 
             ts->sensorLost = false; 
-            PrintTempSensorName(ts->sensorName);
-            Serial.print(F(" temp sensor found (Type: "));
-            Serial.print(ts->type_s); 
-            Serial.println(F(")")); 
+            if (DEBUG) 
+            {
+                PrintTempSensorName(ts->sensorName);
+                DebugSerial->print(F(" temp sensor found (Type: "));
+                DebugSerial->print(ts->type_s); 
+                DebugSerial->println(F(")")); 
+            }
         }   
 
         if (!Found[i] && ts->present)       // This is a new loss - at one time the sensor was found, but is no longer
         {
             ts->present = false; 
             ts->sensorLost = true; 
-            PrintTempSensorName(ts->sensorName);
             SendDisplay(CMD_TEMP_LOST, ts->sensorName);     // We also want to tell the Teensy about the loss (command, value = sensorname)
-            Serial.println(F(" temp sensor lost!"));
+            if (DEBUG)
+            {
+                PrintTempSensorName(ts->sensorName);
+                DebugSerial->println(F(" temp sensor lost!"));
+            }
         }
 
         // Otherwise if Found = Present, then no change has occurred and we don't need to print a message
@@ -269,13 +275,19 @@ float celsius, fahrenheit;
     for ( uint8_t i=0; i<9; i++)        // we need 9 bytes
     {   
         data[i] = oneWire.read();
-        //Serial.print(data[i], HEX);
-        //Serial.print(" ");
+        //if (DEBUG)
+        //{
+            //DebugSerial->print(data[i], HEX);
+            //DebugSerial->print(" ");
+        //}
     }
-    //Serial.print(" CRC=");
-    //Serial.print( OneWire::crc8( data, 8), HEX);
-    //Serial.println();
-    
+    //if (DEBUG)
+    //{
+        //DebugSerial->print(" CRC=");
+        //DebugSerial->print( OneWire::crc8( data, 8), HEX);
+        //DebugSerial->println();
+    //}
+        
     // Convert the data to actual temperature
     // Because the result is a 16 bit signed integer, it should
     // be stored to an "int16_t" type, which is always 16 bits
@@ -308,13 +320,25 @@ float celsius, fahrenheit;
     ts->readingStarted = false;
     ts->newData = true;
     ts->lastMeasure = millis();
-    ts->sensorLost = false;         // We have a reading, sensor is not lost
+    if (ts->sensorLost == true)
+    {
+        ts->sensorLost = false;         // We have a reading, sensor is not lost
+        if (DEBUG)
+        {
+            PrintTempSensorName(ts->sensorName);
+            DebugSerial->println(F(" temp sensor restored"));
+        }
+    }
+    
     /*
+    if (DEBUG)
+    {
         PrintTempSensorName(ts->sensorName);
-        Serial.print(F(" temp: ")); 
-        Serial.print(ts->constrained_temp); 
-        // Serial.print(fahrenheit,1);      // Precise version
-        Serial.println(F("* F")); 
+        DebugSerial->print(F(" temp: ")); 
+        DebugSerial->print(ts->constrained_temp); 
+        // DebugSerial->print(fahrenheit,1);      // Precise version
+        DebugSerial->println(F("* F")); 
+    }
     */
     // Go back to the handler
     TempHandler();
@@ -339,21 +363,28 @@ void SendTempInfo(void)
             {   
                 if (ts->constrained_temp >= 0) SendDisplay(CMD_TEMP_POSITIVE, ts->constrained_temp, ts->sensorName);       // command, value = temp, modifier = sensorname
                 else                          SendDisplay(CMD_TEMP_NEGATIVE, ts->constrained_temp, ts->sensorName);
-                Serial.print(F("Send "));
-                PrintTempSensorName(ts->sensorName);
-                Serial.print(F(" Temp: ")); 
-                Serial.print(ts->constrained_temp); 
-                Serial.print(F("* F at Time: ")); 
-                Serial.println(ts->lastMeasure);
+                if (DEBUG)
+                {
+                    // DebugSerial->print(F("Send "));
+                    PrintTempSensorName(ts->sensorName);
+                    DebugSerial->print(F(" Temp: ")); 
+                    DebugSerial->print(ts->constrained_temp); 
+                    // DebugSerial->print(F("* F at Time: ")); 
+                    // DebugSerial->print(ts->lastMeasure);
+                    DebugSerial->println();
+                }
             }
             else
             {   // We have not had a recent reading - should this sensor be set to lost? 
                 if (ts->sensorLost == false)
                 {
                     ts->sensorLost = true;                                  // Set lost
-                    SendDisplay(CMD_TEMP_LOST, ts->sensorName);             // command, value = sensorname
-                    PrintTempSensorName(ts->sensorName);
-                    Serial.println(F(" temp sensor lost!")); 
+                    if (DEBUG)
+                    {
+                        SendDisplay(CMD_TEMP_LOST, ts->sensorName);             // command, value = sensorname
+                        PrintTempSensorName(ts->sensorName);
+                        DebugSerial->println(F(" temp sensor lost!")); 
+                    }
                 }
             }
         }
@@ -365,9 +396,9 @@ void PrintTempSensorName(char n)
 {
     switch (n)
     {
-        case TS_INTERNAL:   Serial.print(F("Internal"));    break;
-        case TS_EXTERNAL:   Serial.print(F("External"));    break;
-        case TS_AUX:        Serial.print(F("Aux"));         break;
+        case TS_INTERNAL:   DebugSerial->print(F("Internal"));    break;
+        case TS_EXTERNAL:   DebugSerial->print(F("External"));    break;
+        case TS_AUX:        DebugSerial->print(F("Aux"));         break;
     }
 }
 

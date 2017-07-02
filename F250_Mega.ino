@@ -19,6 +19,9 @@
 
     // SERIAL   (GPS Serial defined below in GPS section)
     //--------------------------------------------------------------------------------------------------------------------------------------------------->>
+        HardwareSerial                          *DebugSerial;       // Which serial port to print debug messages to (HardwareSerial is equal to Serial0/Serial Port 0/USART0)
+        boolean DEBUG                           = true;             // Print debugging messages to the PC
+        
         #define DisplaySerial                   Serial3             // The hardware serial port assigned to the Teensy display computer
         #define SENTENCE_BYTES                  5                   // How many bytes in a valid sentence. Note we use 5 bytes, not the 4 you are used to seeing with the Scout or Sabertooth! 
         struct DataSentence {                                       // Serial commands should have four bytes (plus termination). 
@@ -134,10 +137,17 @@
         // My GPS is connected to Hardware Serial 1
         #define GPS_Serial                      Serial1             // For whatever reason, if you set this to an actual variable HardwareSerial, it will not work, so keep it at a DEFINE
         Adafruit_GPS GPS(&GPS_Serial);                              
+
+        boolean GPS_FAST_UPDATE                 = true;             // If set to true will try to have the GPS update at 5Hz instead of 1Hz. Technically it works but when everything else is active I may find it interferes too much. 
+        #define GPS_CHECK_uS                    300                 // The Timer 1 Compare A ISR is used to check for incoming GPS serial data. Adafruit had an ISR set to trip every 1mS, this was too slow for 5Hz updates. 
+                                                                    // This define sets how frequently your ISR should trip, in uS (1 mS = 1000 uS). Even 500 uS (1/2 mS, twice as fast as Arduino) seems to work, but to be safe we
+                                                                    // go a bit more frequent. Thankfully we were also able to up the baud rate to 115200 so it doesn't take as long to read incoming data, and if nothing is there, 
+                                                                    // then the interrupt doesn't really take any time. 
+        #define TIMER1_TICKS_PER_uS             2                   // Timer 1 is set to tick twice per uS, so we have excessively fine control. 
         
         boolean GPSECHO                         = false;            // Set GPSECHO to 'false' to turn off echoing the GPS data to the Serial console. Set to 'true' if you want to debug and listen to the raw GPS sentences. 
                                                                     // We want it off except for debugging if necessary. 
-                                                                    
+                                                                        
         boolean GPS_Interrupt_Active            = false;            // This keeps track of whether the every 1mS interrupt to check for received GPS data is active or not (I don't think we actually need this variable anywhere)
         void Enable_GPS_Interrupt(boolean);                         // Func prototype keeps Arduino 0023 happy
         boolean GPS_FirstFix                    = false;            // We can check a few things when a fix is first obtained, like antenna status, that we won't need to check later. 
@@ -240,20 +250,23 @@ void setup()
     // -------------------------------------------------------------------------------------------------------------------------------------------------->
         TurnOffRelays();
 
-    // Load EEPROM
-    // -------------------------------------------------------------------------------------------------------------------------------------------------->
-        boolean did_we_init = eeprom.begin();                           // begin() will initialize EEPROM if it never has been before, and load all EEPROM settings into our ramcopy struct
-        if (did_we_init) { Serial.println(F("EEPROM Initalized")); }    // We can use this for testing, but in general it's not needed, it doesn't happen often, and rarely would the user catch it. 
-        
     // Init Serial & Comms
     // -------------------------------------------------------------------------------------------------------------------------------------------------->
         Serial.begin(USB_BAUD_RATE); 
-        DisplaySerial.begin(DISPLAY_BAUD_RATE);
+        DebugSerial = &Serial;                      // Use Serial 0 for debugging messages
+        DisplaySerial.begin(DISPLAY_BAUD_RATE);     
+
+    // Load EEPROM
+    // -------------------------------------------------------------------------------------------------------------------------------------------------->
+        boolean did_we_init = eeprom.begin();                           // begin() will initialize EEPROM if it never has been before, and load all EEPROM settings into our ramcopy struct
+        if (did_we_init && DEBUG) { DebugSerial->println(F("EEPROM Initalized")); }    // We can use this for testing, but in general it's not needed, it doesn't happen often, and rarely would the user catch it. 
 
     // Sensors
     // -------------------------------------------------------------------------------------------------------------------------------------------------->        
         InitTempStructs();                                              // Start by initializing our RAM structs
         SetupVoltageSensor();                                           // Initialize the voltage sensor
+        TurnOffGPS();                                                   // Keep the GPS off an startup until we know if the car is on or not. 
+
 }
 
 void loop(void) 
@@ -298,14 +311,14 @@ void loop(void)
             }
             else if (millis() - TransitionOnStartTime > TransitionOnTime)
             {   
-                Serial.println(F("Vehicle turned on"));                 // Ok, we've waited long enough, go ahead and turn everything on
+                if (DEBUG) DebugSerial->println(F("Vehicle turned on"));// Ok, we've waited long enough, go ahead and turn everything on
                 ApplicationState = VEHICLE_ON;                          // Transition to full time ON state
                 
                 // Get things rolling
                 TurnOnDisplay();                                        // Turn on the display 
-//                StartTempReadings();                                    // Start reading temperature data and sending it to the display
-//                StartVoltageReadings();                                 // Start reading battery voltage
-                TurnOnGPS();                                            // Get the GPS going
+                TurnOnGPS();                                            // Get the GPS going, this one takes a while, do it before the others
+                StartTempReadings();                                    // Start reading temperature data and sending it to the display
+                StartVoltageReadings();                                 // Start reading battery voltage
                 // This will start a repeating timer that will send status updates to the display whether anything has changed or not
                 // Below in the ON state we will also continuously check a Poll routine that will additionally send pertinent updates
                 // the moment any changes are detected. 
@@ -315,18 +328,8 @@ void loop(void)
             break;
 
         case VEHICLE_ON:
-            PollInputs();                                               // Handle input polling of things we want the display to know about that changed. This is not important when the car is off. 
-
-            if (!GPS_Interrupt_Active)
-            {
-                while (GPS_Serial.available())
-                {
-                    GPS.read();
-                }
-            }
-
-            CheckGPS_ForData();                                         // We only want this polled when the car is on, not in other states
-            
+            DoVehicleOnStuff();                                         // Everything that needs to be done while vehicle is on, that isn't already scheduled
+          
             // Has the car been turned off? 
             if (IsCarOn() == false) 
             {
@@ -340,6 +343,9 @@ void loop(void)
             // Before we do anything, we want to see if we are going to stay off or if this was just a glitch (glitch maybe, or pehaps engine turned off but then user wento accessory)
             // So we wait, and if the car is still off after some length of time then we'll consider it official
 
+            // While we wait, keep up appearances
+            DoVehicleOnStuff();                                         // Everything that needs to be done while vehicle is on, that isn't already scheduled
+
             // If the car was turned back on while we're waiting, revert back to the on state
             if (IsCarOn())
             {
@@ -347,7 +353,7 @@ void loop(void)
             }            
             else if (millis() - TransitionOffStartTime > TransitionOffTime)
             {   
-                Serial.println(F("Vehicle turned off"));                // Ok, we've waited long enough, go ahead and turn everything off
+                if (DEBUG) DebugSerial->println(F("Vehicle turned off"));// Ok, we've waited long enough, go ahead and turn everything off
                 ApplicationState = VEHICLE_OFF;                         // Go to full time Off state
 
                 // Shut the shit down
@@ -362,6 +368,16 @@ void loop(void)
     }
 }
 
+// We make all this stuff its own routine so it is easy to call it from both VEHICLE_ON and temporarily also from VEHICLE_TRANSITION_OFF
+void DoVehicleOnStuff(void)
+{   
+    PollInputs();                                               // Handle input polling of things we want the display to know about that changed. This is not important when the car is off. 
+    // If we set the GPS to fast updates the 1 mS interrupt isn't fast enough to keep up, so we have to read here in the main loop
+    if (!GPS_Interrupt_Active) { while (GPS_Serial.available()) {GPS.read();} }
+    CheckGPS_ForData();                                         // This checks for a complete and valid sentence; if one is found it updates local variables. Data gets sent to the display independently. 
+}
+
+
 void PollInputs()
 {
     // Here we see if any inputs have changed, and if so, send a message to the display. 
@@ -372,13 +388,13 @@ void PollInputs()
     {
         Ham_On = false;
         SendDisplay(CMD_CB_ON);
-        Serial.println(F("CB microphone selected"));
+        if (DEBUG) DebugSerial->println(F("CB microphone selected"));
     }
     if (digitalRead(CB_Select) == DI_Low && Ham_On == false)
     {
         Ham_On = true;
         SendDisplay(CMD_HAM_ON);
-        Serial.println(F("Ham microphone selected"));
+        if (DEBUG) DebugSerial->println(F("Ham microphone selected"));
     }
 
     // Fuel pump
@@ -387,13 +403,13 @@ void PollInputs()
     {
         FuelPump_On = true;
         SendDisplay(CMD_FUEL_PUMP_ON);
-        Serial.println(F("Fuel Pump turned on!!")); 
+        if (DEBUG) DebugSerial->println(F("Fuel Pump turned on!!")); 
     }
     if (digitalRead(FuelPump) == DI_Low && FuelPump_On == true)
     {
         FuelPump_On = false;
         SendDisplay(CMD_FUEL_PUMP_OFF);
-        Serial.println(F("Fuel Pump turned off")); 
+        if (DEBUG) DebugSerial->println(F("Fuel Pump turned off")); 
     }
 
     // Torque converter lockup state
@@ -402,12 +418,12 @@ void PollInputs()
     if (tqc != TorqueConverterState)
     {
         TorqueConverterState = tqc;
-        Serial.print(F("Torque converter locked mode: "));
+        if (DEBUG) DebugSerial->print(F("Torque converter locked mode: "));
         switch (tqc)
         {
-            case TQC_AUTO:          SendDisplay(CMD_TQC_AUTO);          Serial.println(F("Auto"));           break;
-            case TQC_FORCE_LOCK:    SendDisplay(CMD_TQC_FORCE_LOCK);    Serial.println(F("Force Locked"));   break;
-            case TQC_FORCE_UNLOCK:  SendDisplay(CMD_TQC_FORCE_UNLOCK);  Serial.println(F("Force Unlocked")); break;
+            case TQC_AUTO:          SendDisplay(CMD_TQC_AUTO);          if (DEBUG) { DebugSerial->println(F("Auto"));          } break;
+            case TQC_FORCE_LOCK:    SendDisplay(CMD_TQC_FORCE_LOCK);    if (DEBUG) { DebugSerial->println(F("Force Locked"));  } break;
+            case TQC_FORCE_UNLOCK:  SendDisplay(CMD_TQC_FORCE_UNLOCK);  if (DEBUG) { DebugSerial->println(F("Force Unlocked"));} break;
         }
     }
 
@@ -417,13 +433,13 @@ void PollInputs()
     {
         OverdriveEnabled = false;
         SendDisplay(CMD_OVERDRIVE_OFF);
-        Serial.println(F("Overdrive disabled")); 
+        if (DEBUG) DebugSerial->println(F("Overdrive disabled")); 
     }
     if (digitalRead(Overdrive_Off) == DI_Low && OverdriveEnabled == false)
     {
         OverdriveEnabled = true;
         SendDisplay(CMD_OVERDRIVE_ON);
-        Serial.println(F("Overdrive enabled")); 
+        if (DEBUG) DebugSerial->println(F("Overdrive enabled")); 
     }    
 
     // Baumann Table 2 (alternate transmission configuration settings - negative signal means Table 2 active)
@@ -432,13 +448,13 @@ void PollInputs()
     {
         AlternateTransSetting = true;
         SendDisplay(CMD_TRANS_TABLE2);
-        Serial.println(F("Baumann Table 2 selected")); 
+        if (DEBUG) DebugSerial->println(F("Baumann Table 2 selected")); 
     }
     if (digitalRead(BaumannTable2) == DI_High && AlternateTransSetting == true)
     {
         AlternateTransSetting = false;
         SendDisplay(CMD_TRANS_TABLE1);
-        Serial.println(F("Baumann Default (Table 1) settings selected")); 
+        if (DEBUG) DebugSerial->println(F("Baumann Default (Table 1) settings selected")); 
     }   
     
     // Low air tank warning (negative signal is the warning)
@@ -447,13 +463,13 @@ void PollInputs()
     {
         Low_Air_Warning = true;
         SendDisplay(CMD_LOW_AIR_WARN);
-        Serial.println(F("Low air warning!")); 
+        if (DEBUG) DebugSerial->println(F("Low air warning!")); 
     }
     if (digitalRead(Low_Air) == DI_High && Low_Air_Warning == true)
     {
         Low_Air_Warning = false;
         SendDisplay(CMD_AIR_RESTORED);
-        Serial.println(F("Air pressure restored")); 
+        if (DEBUG) DebugSerial->println(F("Air pressure restored")); 
     }   
 
     // Alarm status - this probably doesn't need to be sent to the display, but rather handled internally

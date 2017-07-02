@@ -26,7 +26,7 @@ void HandleUpdateLightsFlag(void)
         // Turn them off
         TurnOffAuxRearLights();
         RearLightsOn = false; 
-        Serial.println("Lights Off");
+        if (DEBUG) DebugSerial->println("Rear Lights Off");
     }
     else
     {
@@ -38,7 +38,7 @@ void HandleUpdateLightsFlag(void)
 
         // FOR TESTING
         SoundHorn(500);
-        Serial.println("Lights On");    
+        if (DEBUG) DebugSerial->println("Rear Lights On");    
     }
 }
 
