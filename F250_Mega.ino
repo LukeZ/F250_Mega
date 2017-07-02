@@ -6,10 +6,8 @@
 #include "src/F250_SimpleTimer/F250_SimpleTimer.h"
 #include "src/Sleepy/Sleepy.h"
 #include "SPI.h"
-#include "Adafruit_GFX.h"
-#include "Adafruit_ILI9340.h"
 #include <OneWire.h>
-#include <Adafruit_GPS_Mega_Hardware.h>
+#include "src/Adafruit_GPS_Mod/Adafruit_GPS_Mega_Hardware.h"        // Modified version of Adafruit GPS library to only use hardware serial, avoids conflicts with GSM library. Created from Adafruit version downloaded 6/30/2017
 #include <GSM.h>
 
 
@@ -19,10 +17,9 @@
         const byte On                           = 1;
         const byte Off                          = 0;
 
-    // SERIAL
+    // SERIAL   (GPS Serial defined below in GPS section)
     //--------------------------------------------------------------------------------------------------------------------------------------------------->>
         #define DisplaySerial                   Serial3             // The hardware serial port assigned to the Teensy display computer
-        #define GPS_Serial                      Serial1             // The hardware serial port assigned to communicate with the Adafruit GPS
         #define SENTENCE_BYTES                  5                   // How many bytes in a valid sentence. Note we use 5 bytes, not the 4 you are used to seeing with the Scout or Sabertooth! 
         struct DataSentence {                                       // Serial commands should have four bytes (plus termination). 
             uint8_t    Address                  = 0;                // We use a struct for convenience
@@ -127,29 +124,25 @@
 
     // GPS BOARD SPECIFIC
     //--------------------------------------------------------------------------------------------------------------------------------------------------->>
+        // Most GPS code taken from the "parsing" example in the Adafruit Ultimate GPS code base. 
+        // "This code shows how to listen to the GPS module in an interrupt which allows the program to have more 'freedom' - 
+        // just parse when a new NMEA sentence is available! Then access data when desired."
         #define GPS_EN                          7
         #define GPS_FIX                         6
         #define GPS_PPS                         5
-        // Connect the GPS Power pin to 5V
-        // Connect the GPS Ground pin to ground
-        // If using hardware serial (e.g. Arduino Mega):
-        //   Connect the GPS TX (transmit) pin to Arduino RX1, RX2 or RX3
-        //   Connect the GPS RX (receive) pin to matching TX1, TX2 or TX3
-        // LUKE EDIT: My GPS is connected to Hardware Serial 1
-        
-        // If using hardware serial (e.g. Arduino Mega), comment
-        // out the above six lines and enable this line instead:
-        Adafruit_GPS GPS(&GPS_Serial);
 
-        // Set GPSECHO to 'false' to turn off echoing the GPS data to the Serial console
-        // Set to 'true' if you want to debug and listen to the raw GPS sentences
-        #define GPSECHO                         false
-
-        // this keeps track of whether we're using the interrupt
-        // off by default!
-        boolean usingInterrupt                  = false;
-        void useInterrupt(boolean); // Func prototype keeps Arduino 0023 happy        
+        // My GPS is connected to Hardware Serial 1
+        #define GPS_Serial                      Serial1             // For whatever reason, if you set this to an actual variable HardwareSerial, it will not work, so keep it at a DEFINE
+        Adafruit_GPS GPS(&GPS_Serial);                              
         
+        boolean GPSECHO                         = false;            // Set GPSECHO to 'false' to turn off echoing the GPS data to the Serial console. Set to 'true' if you want to debug and listen to the raw GPS sentences. 
+                                                                    // We want it off except for debugging if necessary. 
+                                                                    
+        boolean GPS_Interrupt_Active            = false;            // This keeps track of whether the every 1mS interrupt to check for received GPS data is active or not (I don't think we actually need this variable anywhere)
+        void Enable_GPS_Interrupt(boolean);                         // Func prototype keeps Arduino 0023 happy
+        boolean GPS_FirstFix                    = false;            // We can check a few things when a fix is first obtained, like antenna status, that we won't need to check later. 
+        uint8_t GPS_Antenna_Status              = ANTENNA_STAT_UNKNOWN; // Antenna status
+        boolean GPS_Antenna_Status_Known        = false;            // Did we figure out the antenna status yet
 
     // DALLAS ONE-WIRE (TEMPERATURE SENSORS)
     //--------------------------------------------------------------------------------------------------------------------------------------------------->>
@@ -261,7 +254,6 @@ void setup()
     // -------------------------------------------------------------------------------------------------------------------------------------------------->        
         InitTempStructs();                                              // Start by initializing our RAM structs
         SetupVoltageSensor();                                           // Initialize the voltage sensor
-        
 }
 
 void loop(void) 
@@ -311,8 +303,8 @@ void loop(void)
                 
                 // Get things rolling
                 TurnOnDisplay();                                        // Turn on the display 
-                StartTempReadings();                                    // Start reading temperature data and sending it to the display
-                StartVoltageReadings();                                 // Start reading battery voltage
+//                StartTempReadings();                                    // Start reading temperature data and sending it to the display
+//                StartVoltageReadings();                                 // Start reading battery voltage
                 TurnOnGPS();                                            // Get the GPS going
                 // This will start a repeating timer that will send status updates to the display whether anything has changed or not
                 // Below in the ON state we will also continuously check a Poll routine that will additionally send pertinent updates
@@ -324,6 +316,16 @@ void loop(void)
 
         case VEHICLE_ON:
             PollInputs();                                               // Handle input polling of things we want the display to know about that changed. This is not important when the car is off. 
+
+            if (!GPS_Interrupt_Active)
+            {
+                while (GPS_Serial.available())
+                {
+                    GPS.read();
+                }
+            }
+
+            CheckGPS_ForData();                                         // We only want this polled when the car is on, not in other states
             
             // Has the car been turned off? 
             if (IsCarOn() == false) 
@@ -548,13 +550,5 @@ void SetMyPins()
   
 }
 
-/*
 
-// This is a further TFT test    
-//  for(uint8_t rotation=0; rotation<4; rotation++) {
-//    tft.setRotation(rotation);
-//    testText();
-//    delay(2000);
-//  }
-*/
 
