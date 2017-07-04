@@ -119,6 +119,17 @@ boolean Adafruit_GPS::parse(char *nmea) {
       else return false;
     }
     
+    // Fix quality supposedly: 
+    //      0 = invalid
+    //      1 = GPS fix (SPS)
+    //      2 = DGPS fix
+    //      3 = PPS fix
+    //      4 = Real Time Kinematic
+    //      5 = Float RTK
+    //      6 = estimated (dead reckoning) (2.3 feature)
+    //      7 = Manual input mode
+    //      8 = Simulation mode    
+    // You will probably not see above 2
     p = strchr(p, ',')+1;
     if (',' != *p)
     {

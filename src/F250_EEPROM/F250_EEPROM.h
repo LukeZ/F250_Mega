@@ -2,9 +2,9 @@
 #define F250_EEPROM_H
 
 #include <Arduino.h>
-#include "../EEPROMex/EEPROMex.h"   // We use the extended version, not Arduino's built-in EEPROM library. 
-// This one is important. It has the definition of our eeprom struct
-#include "F250_EEPROM_Struct.h"
+#include "../EEPROMex/EEPROMex.h"               // We use the extended version, not Arduino's built-in EEPROM library. 
+#include "../F250_Settings/F250_Settings.h"     //
+#include "F250_EEPROM_Struct.h"                 // This one is important. It has the definition of our eeprom struct
 
 
 //--------------------------------------------------------------------------------------------------------------------------------------->>
@@ -13,7 +13,7 @@
 //=======================================================================================================================================>>
 // If any changes are made to the _eeprom_data struct in OP_EEPROM_Struct.h, the EEPROM_INIT definition below must be changed to a new number.
 
-    #define EEPROM_INIT             0x40AB          // Modified 6/27/2017
+    #define EEPROM_INIT             0x42BB          // Modified 7/03/2017
 //
 //
 //=======================================================================================================================================>>

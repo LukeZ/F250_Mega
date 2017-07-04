@@ -88,16 +88,34 @@ void ProcessCommand(DataSentence * sentence)
 {
     switch (sentence->Command)
     {
-/*
-        case CMD_ENGINE_START:         StartEngine();                                      break;
-        case CMD_ENGINE_STOP:          StopEngine();                                       break;
-        case CMD_USER_SOUND_PLAY:      PlayUserSound(sentence->Modifier, true, false);     break;  // Modifier indicates which sound, "true" for "start", "false" for "don't repeat"
-        case CMD_SQUEAK_SET_MIN:       SetSqueakMin(sentence->Value, sentence->Modifier);  break;
-        case CMD_BEEP_ONCE:            Beep(1);                                            break;        
-        case CMD_BEEP_X:               Beep(sentence->Value);                              break;        
-        case CMD_SET_VOLUME:           UpdateVolume_Serial(sentence->Value);               break;
-        case CMD_BRAKE_SOUND:          BrakeSound();                                       break;
-*/
+        case RCV_CMD_SET_HOME_COORD:
+            // Save current coordinates as Home, if we have a fix
+            if (GPS.fix)
+            {
+                EEPROM.updateFloat(offsetof(_eeprom_data, Lat_Home), Current_Latitude);
+                EEPROM.updateFloat(offsetof(_eeprom_data, Lon_Home), Current_Longitude);
+            }
+            break;
+
+        case RCV_CMD_SET_HOME_ALT:
+            // Save home altitude to EEPROM
+            {
+                uint16_t alt = (sentence->Value * 100) + sentence->Modifier;    
+                EEPROM.updateInt(offsetof(_eeprom_data, Alt_Home), alt);
+            }
+            break;
+
+        case RCV_CMD_SET_CURRENT_ALT:
+            // We are being given a current altitude, but what we actually save in EEPROM is an adjustment
+            {
+                uint16_t alt = (sentence->Value * 100) + sentence->Modifier;    // Altitude given
+            }
+            break; 
+        
+        case RCV_CMD_SET_TIMEZONE:
+            EEPROM.updateByte(offsetof(_eeprom_data, Timezone), sentence->Value);        
+            break;
+
         default:
             break;
     }

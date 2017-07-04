@@ -1,18 +1,18 @@
 
 void TurnOnDisplay(void) 
 {
-    SendDisplay(CMD_TURN_ON);
+    SendDisplay(CMD_DISPLAY_TURN_ON);
 }
 
 void TurnOffDisplay(void) 
 {
-    SendDisplay(CMD_TURN_OFF);
+    SendDisplay(CMD_DISPLAY_TURN_OFF);
 }
 
 void UpdateDisplay(void)
 {   // As opposed to PollInputs on the main tab, which sends display information whenever something changes, this function gets called at routine intervals 
     // and sends data to the display whether it needs it or not. Basically it is a redundancy in case the PollInputs communication failed. 
-    // Note also, this doesn't send _all_ data, but only that which isn't self updating already (things like the temp sensors take care of sending their own updates)
+    // Note also, this doesn't send _all_ data, but only that which isn't self updating already (things like the temp sensors & GPS etc take care of sending their own updates)
     
     Ham_On ? SendDisplay(CMD_HAM_ON) : SendDisplay(CMD_CB_ON);                              // Ham/CB microphone selector
     FuelPump_On ? SendDisplay(CMD_FUEL_PUMP_ON) : SendDisplay(CMD_FUEL_PUMP_OFF);           // Fuel pump

@@ -60,12 +60,29 @@ void F250_EEPROM::Initialize_EEPROM(void)
 void F250_EEPROM::Initialize_RAMcopy(void) 
 {   // If EEPROM has not been used before, we initialize to some sensible, yet conservative, default values.
     
-    // OneWire Temp Sensors
+    // OneWire temp sensor addresses
         for (uint8_t i=0; i<8; i++)
         {
             ramcopy.TempAddress_Int[i] = 0;
             ramcopy.TempAddress_Ext[i] = 0;
             ramcopy.TempAddress_Aux[i] = 0;
         }
+
+    // Time stuff
+        ramcopy.Timezone = CST;
+    
+    // Altitude stuff
+        // Current adjustment, based on an altitude received from the display
+        
+    // GPS Stuff
+    // Recall N and E are positive, S and W are negative
+        // Coordinates at Huntington Park apartments, Wichita
+        // Use the "degrees" version of Adafruit's lat/long
+        ramcopy.Lat_Home = 37.7060;     // North 
+        ramcopy.Lon_Home = -97.4643;    // West
+        ramcopy.Alt_Home = 409;         // Altitude in meters - Huntington Park Apartments, Wichita
+       
 }
+
+
 

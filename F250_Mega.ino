@@ -151,8 +151,53 @@
         boolean GPS_Interrupt_Active            = false;            // This keeps track of whether the every 1mS interrupt to check for received GPS data is active or not (I don't think we actually need this variable anywhere)
         void Enable_GPS_Interrupt(boolean);                         // Func prototype keeps Arduino 0023 happy
         boolean GPS_FirstFix                    = false;            // We can check a few things when a fix is first obtained, like antenna status, that we won't need to check later. 
+        boolean GPS_Fixed = false;                                  // An internal tracking variable, separate from the GPS library variable, will also let us track changes in the fix status
         uint8_t GPS_Antenna_Status              = ANTENNA_STAT_UNKNOWN; // Antenna status
         boolean GPS_Antenna_Status_Known        = false;            // Did we figure out the antenna status yet
+
+        // Home stuff
+        #define MAX_DISTANCE_COUNTS_AS_HOME     16000               // Distance from stored home position within which we will use the stored home altitude as a barometric adjustment, in other words, how far away from 
+                                                                    // home do we still count "as home." In meters. 16,000 meters ~ 10 miles
+                                                                    // Beyond this distance you can set a manual adjustment, or else we may decide to use GPS to adjust
+        boolean startAtHome                     = false;            // Are we starting at home? 
+
+        // Time Stuff
+        // PST, MST, CST, etc... are defined in Settings.h. The current timezone among those is stored in EEPROM
+        int UTC_Offset[5] = {-9, -8, -7, -6, -5};                   // CST adjustment from UTC, during standard time. In DST (summertime), the difference is one less (so the CST offset would become -5)
+        int DSTbegin[] = { 310, 309, 308, 313, 312, 311, 310, 308, 314, 313, 312, 310, 309 };               // DST 2013 - 2025 in Canada and US
+        int DSTend[] = { 1103, 1102, 1101, 1106, 1105, 1104, 1103, 1101, 1107, 1106, 1105, 1103, 1102 };    // DST 2013 - 2025 in Canada and US
+        int DaysInMonth[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };                             // Number of days in month, non-leap-year years
+        struct _datetime
+        {          
+            int Hour;
+            int Minute;
+            int Second;
+            int Year;           // 2 digit year only
+            int Month;
+            int Day;
+        };
+        _datetime DateTime;
+
+        // GPS Speed
+        uint8_t MPH;                                                // Miles per hour, integer, can't exceed 255. Shouldn't be a problem.
+        #define Minimum_MPH                     4                   // What minimum speed below which we ignore as noise from the GPS
+        uint8_t Max_MPH;                                            // Maximum speed obtained since the car has been turned on
+        const int GPS_SPEED_NTAPS               = 5;                // How many readings to average over
+        float GPSSpeedFIR[GPS_SPEED_NTAPS];                         // Filter line for GPS speed readings (in knots)
+        float GPS_Avg_Speed_Knots               = 0;                // Current average GPS speed (in knots - float)
+
+        // GPS Coordinates
+        uint8_t HeadingCode;                                        // 16 possible values (0-15) representing the points in a clockwise direction from North (N, NNE, NE, ENE, E, ESE, SE, SSE, S, etc... 
+        float Current_Latitude;                                     // Present (or last known) location in degrees
+        float Current_Longitude;                                    // Present (or last known) location in degrees
+
+        // GPS Altitude
+        float GPS_Altitude_Meters;                                  // Current altitude in meters
+
+        // GPS -> Display
+        #define GPS_SEND_FREQ                   500                 // How often to send GPS data to the screen in mS. GPS updates at 5hz, we send to the display at 2hz (every 1/2 second)
+        int TimerID_GPSSender                   = 0;                // Timer that sends the readings to the display on some schedule
+        
 
     // DALLAS ONE-WIRE (TEMPERATURE SENSORS)
     //--------------------------------------------------------------------------------------------------------------------------------------------------->>
@@ -221,10 +266,11 @@
     // APPLICATION STATE MACHINE
     //--------------------------------------------------------------------------------------------------------------------------------------------------->>
         typedef char APP_STATE;                                
-        #define VEHICLE_OFF                     0
-        #define VEHICLE_TRANSITION_ON           1
-        #define VEHICLE_ON                      2
-        #define VEHICLE_TRANSITION_OFF          3
+        #define APPLICATION_BOOT                0
+        #define VEHICLE_OFF                     1
+        #define VEHICLE_TRANSITION_ON           2
+        #define VEHICLE_ON                      3
+        #define VEHICLE_TRANSITION_OFF          4
 
         #define TransitionOnTime                3000                // How many milliseconds to wait from the time the car is turned on  until we actually go full on
         #define TransitionOffTime               5000                // How many milliseconds to wait from the time the car is turned off until we actually go full off
@@ -253,27 +299,28 @@ void setup()
     // Init Serial & Comms
     // -------------------------------------------------------------------------------------------------------------------------------------------------->
         Serial.begin(USB_BAUD_RATE); 
-        DebugSerial = &Serial;                      // Use Serial 0 for debugging messages
+        DebugSerial = &Serial;                                      // Use Serial 0 for debugging messages
         DisplaySerial.begin(DISPLAY_BAUD_RATE);     
+        delay(100);
+        TurnOffDisplay();                                           // Start with display off
 
     // Load EEPROM
     // -------------------------------------------------------------------------------------------------------------------------------------------------->
-        boolean did_we_init = eeprom.begin();                           // begin() will initialize EEPROM if it never has been before, and load all EEPROM settings into our ramcopy struct
+        boolean did_we_init = eeprom.begin();                       // begin() will initialize EEPROM if it never has been before, and load all EEPROM settings into our ramcopy struct
         if (did_we_init && DEBUG) { DebugSerial->println(F("EEPROM Initalized")); }    // We can use this for testing, but in general it's not needed, it doesn't happen often, and rarely would the user catch it. 
 
     // Sensors
     // -------------------------------------------------------------------------------------------------------------------------------------------------->        
-        InitTempStructs();                                              // Start by initializing our RAM structs
-        SetupVoltageSensor();                                           // Initialize the voltage sensor
-        TurnOffGPS();                                                   // Keep the GPS off an startup until we know if the car is on or not. 
-
+        InitTempStructs();                                          // Start by initializing our RAM structs
+        SetupVoltageSensor();                                       // Initialize the voltage sensor
+        TurnOffGPS();                                               // Keep the GPS off an startup until we know if the car is on or not. 
 }
 
 void loop(void) 
 {
     static uint32_t TransitionOnStartTime = 0;
     static uint32_t TransitionOffStartTime = 0;
-    static APP_STATE ApplicationState = VEHICLE_OFF;
+    static APP_STATE ApplicationState = APPLICATION_BOOT;
 
     // Regardless of state, we always update the timer and other timed routines that need polling
     timer.run();    // Simple Timer stuff
@@ -281,6 +328,22 @@ void loop(void)
 
     switch (ApplicationState)
     {
+        case APPLICATION_BOOT:
+            // This state occurs when the program first loads. We don't yet know the status of the vehicle.
+            if (IsCarOn()) 
+            {
+                // Transition directly to on
+                TransitionOnStartTime = millis() + TransitionOnTime + 1;    // This will eliminate the on transition delay
+                ApplicationState = VEHICLE_TRANSITION_ON;
+            }
+            else
+            {
+                TurnOffDisplay();                                           // Already sent this in Setup(), but do it again just in case
+                ApplicationState = VEHICLE_OFF;                             // Don't transition, go straight to Off
+            }
+            break; 
+
+            
         case VEHICLE_OFF:
             // In Car Off mode we want to do the barest minimum of stuff. 
             
@@ -316,6 +379,7 @@ void loop(void)
                 
                 // Get things rolling
                 TurnOnDisplay();                                        // Turn on the display 
+                InitSessionMinMaxes();                                  // Clear session min/maxes
                 TurnOnGPS();                                            // Get the GPS going, this one takes a while, do it before the others
                 StartTempReadings();                                    // Start reading temperature data and sending it to the display
                 StartVoltageReadings();                                 // Start reading battery voltage
@@ -377,6 +441,11 @@ void DoVehicleOnStuff(void)
     CheckGPS_ForData();                                         // This checks for a complete and valid sentence; if one is found it updates local variables. Data gets sent to the display independently. 
 }
 
+void InitSessionMinMaxes(void)
+{
+    Max_MPH = 0;                    // What is the fastest we've gone since the car was turned on
+    
+}
 
 void PollInputs()
 {
