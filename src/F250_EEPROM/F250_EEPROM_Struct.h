@@ -6,7 +6,7 @@
 // This defines every variable held in EEPROM
 //--------------------------------------------------------------------------------------------------------------------------------------->>
 
-
+#include "../F250_Settings/F250_Settings.h"     
 
 struct _eeprom_data 
 {
@@ -18,6 +18,11 @@ struct _eeprom_data
 
 // Time stuff
     uint8_t Timezone;
+
+// Temp stuff
+    _saved_tempdata SavedInternalTemp;
+    _saved_tempdata SavedExternalTemp;
+    _saved_tempdata SavedAuxTemp;
 
 // Altitude stuff
     // Current adjustment, based on an altitude received from the display

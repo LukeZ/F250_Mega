@@ -116,6 +116,31 @@ void ProcessCommand(DataSentence * sentence)
             EEPROM.updateByte(offsetof(_eeprom_data, Timezone), sentence->Value);        
             break;
 
+        case RCV_CMD_RESET_ABS_TEMP:
+            // Erase prior all-time min/max temperatures and set them to current values. Leave session temps unchanged. 
+            // You could potentially also pass a flag in Value to only clear min or max rather than both... 
+            switch (sentence->Modifier)
+            {
+                case 0: // Internal sensor
+                    EEPROM.updateInt(offsetof(_eeprom_data, SavedInternalTemp.AbsoluteMax), InternalTemp.constrained_temp);
+                    EEPROM.updateBlock(offsetof(_eeprom_data, SavedInternalTemp.AbsoluteMaxTimeStamp), CurrentDateTime);
+                    EEPROM.updateInt(offsetof(_eeprom_data, SavedInternalTemp.AbsoluteMin), InternalTemp.constrained_temp);
+                    EEPROM.updateBlock(offsetof(_eeprom_data, SavedInternalTemp.AbsoluteMinTimeStamp), CurrentDateTime);
+                    break;
+                case 1: // External sensor
+                    EEPROM.updateInt(offsetof(_eeprom_data, SavedExternalTemp.AbsoluteMax), ExternalTemp.constrained_temp);
+                    EEPROM.updateBlock(offsetof(_eeprom_data, SavedExternalTemp.AbsoluteMaxTimeStamp), CurrentDateTime);
+                    EEPROM.updateInt(offsetof(_eeprom_data, SavedExternalTemp.AbsoluteMin), ExternalTemp.constrained_temp);
+                    EEPROM.updateBlock(offsetof(_eeprom_data, SavedExternalTemp.AbsoluteMinTimeStamp), CurrentDateTime);
+                    break;
+                case 2: // Aux sensor
+                    EEPROM.updateInt(offsetof(_eeprom_data, SavedAuxTemp.AbsoluteMax), AuxTemp.constrained_temp);
+                    EEPROM.updateBlock(offsetof(_eeprom_data, SavedAuxTemp.AbsoluteMaxTimeStamp), CurrentDateTime);
+                    EEPROM.updateInt(offsetof(_eeprom_data, SavedAuxTemp.AbsoluteMin), AuxTemp.constrained_temp);
+                    EEPROM.updateBlock(offsetof(_eeprom_data, SavedAuxTemp.AbsoluteMinTimeStamp), CurrentDateTime);
+                    break;                    
+            }
+
         default:
             break;
     }

@@ -15,6 +15,10 @@ void StartTempReadings(void)
         if (TimerID_TempSender == 0) TimerID_TempSender = timer.setInterval(TEMP_SEND_FREQ, SendTempInfo);            
         else if (timer.isEnabled(TimerID_TempSender) == false) timer.enable(TimerID_TempSender);
 
+        // This function sends all-time min/max temps to the display once on startup
+        SendDisplayAllTimeTemps();
+
+        // This function re-checks the sensors
         if (TimerID_TempSensorCheck == 0) TimerID_TempSensorCheck = timer.setInterval(TEMP_SENSOR_CHECK_FREQ, SetupOneWireSensors);
         else if (timer.isEnabled(TimerID_TempSensorCheck) == false) timer.enable(TimerID_TempSensorCheck); 
     }
@@ -39,6 +43,7 @@ boolean correctType = false;
 
 boolean Found[NUM_TEMP_SENSORS] = {false, false, false};
 _tempsensor *ts; 
+_saved_tempdata *sd;
     
     // See if anything is attached
     while(oneWire.search(addr) == true && sensorCount < 3)
@@ -108,10 +113,11 @@ _tempsensor *ts;
     }
 
     for (uint8_t i=0; i<NUM_TEMP_SENSORS; i++)
+
     {
-        if (i == 0) ts = &InternalTemp;
-        if (i == 1) ts = &ExternalTemp;
-        if (i == 2) ts = &AuxTemp; 
+        if (i == 0) { ts = &InternalTemp; sd = &eeprom.ramcopy.SavedInternalTemp; }
+        if (i == 1) { ts = &ExternalTemp; sd = &eeprom.ramcopy.SavedExternalTemp; }
+        if (i == 2) { ts = &AuxTemp;      sd = &eeprom.ramcopy.SavedAuxTemp; }
                 
         if (Found[i] && !ts->present)       // This is a new find
         {
@@ -120,9 +126,17 @@ _tempsensor *ts;
             if (DEBUG) 
             {
                 PrintTempSensorName(ts->sensorName);
-                DebugSerial->print(F(" temp sensor found (Type: "));
-                DebugSerial->print(ts->type_s); 
-                DebugSerial->println(F(")")); 
+                DebugSerial->print(F(" temp sensor found ("));
+                PrintTempSensorType(ts->type_s);
+                DebugSerial->print(F(") Abs Max ")); 
+                DebugSerial->print(sd->AbsoluteMax);
+                DebugSerial->print(F("*F at "));
+                DebugPrintDateTime(sd->AbsoluteMaxTimeStamp);
+                DebugSerial->print(F(", Abs Min: ")); 
+                DebugSerial->print(sd->AbsoluteMin);
+                DebugSerial->print(F("*F at "));
+                DebugPrintDateTime(sd->AbsoluteMinTimeStamp);
+                DebugSerial->println();
             }
         }   
 
@@ -153,6 +167,9 @@ void InitTempStructs(void)
     InternalTemp.lastMeasure = 0;
     InternalTemp.sensorName = TS_INTERNAL;
     InternalTemp.constrained_temp = 0;
+    InternalTemp.constrained_temp_prior = 0;
+    InternalTemp.minSessionTemp = 200;      // Initialize min/max to values that will be overwritten quickly
+    InternalTemp.maxSessionTemp = -50;        
     InternalTemp.sensorLost = false;
     clearFIR(TEMP_NTAPS, InternalTemp.fir);
     
@@ -164,6 +181,9 @@ void InitTempStructs(void)
     ExternalTemp.lastMeasure = 0;
     ExternalTemp.sensorName = TS_EXTERNAL;
     ExternalTemp.constrained_temp = 0;
+    ExternalTemp.constrained_temp_prior = 0;
+    ExternalTemp.minSessionTemp = 200;      // Initialize min/max to values that will be overwritten quickly
+    ExternalTemp.maxSessionTemp = -50;        
     ExternalTemp.sensorLost = false;
     clearFIR(TEMP_NTAPS, ExternalTemp.fir);
 
@@ -175,6 +195,9 @@ void InitTempStructs(void)
     AuxTemp.lastMeasure = 0;
     AuxTemp.sensorName = TS_AUX;
     AuxTemp.constrained_temp = 0;
+    AuxTemp.constrained_temp_prior = 0;
+    AuxTemp.minSessionTemp = 200;      // Initialize min/max to values that will be overwritten quickly
+    AuxTemp.maxSessionTemp = -50;        
     AuxTemp.sensorLost = false;
     clearFIR(TEMP_NTAPS, AuxTemp.fir);
     
@@ -349,29 +372,177 @@ void SendTempInfo(void)
     const uint32_t INVALID_TIME = 30000;          // If we haven't gotten a reading in more than 30 seconds, consider the sensor disconnected (lost)
     
     _tempsensor *ts; 
+    _saved_tempdata *sd;
 
     for (uint8_t i=0; i<NUM_TEMP_SENSORS; i++)
     {
-        if (i == 0) ts = &InternalTemp;
-        if (i == 1) ts = &ExternalTemp;
-        if (i == 2) ts = &AuxTemp; 
+        if (i == 0) { ts = &InternalTemp; sd = &eeprom.ramcopy.SavedInternalTemp; }
+        if (i == 1) { ts = &ExternalTemp; sd = &eeprom.ramcopy.SavedExternalTemp; }
+        if (i == 2) { ts = &AuxTemp;      sd = &eeprom.ramcopy.SavedAuxTemp; }
 
         // If sensor is present
         if (ts->present)
         {   // If we have a recent reading
             if (millis() - ts->lastMeasure < INVALID_TIME)
             {   
-                if (ts->constrained_temp >= 0) SendDisplay(CMD_TEMP_POSITIVE, ts->constrained_temp, ts->sensorName);       // command, value = temp, modifier = sensorname
-                else                          SendDisplay(CMD_TEMP_NEGATIVE, ts->constrained_temp, ts->sensorName);
+                if (ts->constrained_temp >= 0) 
+                {
+                    // Send curent positive temp
+                    SendDisplay(CMD_TEMP_POSITIVE, ts->constrained_temp, ts->sensorName);       // command, value = temp, modifier = sensorname
+                    
+                    // Check for new session max temp
+                    if (ts->constrained_temp > ts->maxSessionTemp) 
+                    {
+                        ts->maxSessionTemp = ts->constrained_temp;
+                        SendDisplay(CMD_TEMP_MAX_POS, ts->maxSessionTemp, ts->sensorName);
+                        if (DEBUG) { PrintTempSensorName(ts->sensorName); DebugSerial->print(F(" Temp, New Session Max: ")); DebugSerial->println(ts->constrained_temp); }
+                    }
+                    // Check for new session min temp
+                    if (ts->constrained_temp < ts->minSessionTemp) 
+                    {
+                        ts->minSessionTemp = ts->constrained_temp;
+                        SendDisplay(CMD_TEMP_MIN_POS, ts->minSessionTemp, ts->sensorName);
+                        if (DEBUG) { PrintTempSensorName(ts->sensorName); DebugSerial->print(F(" Temp, New Session Min: ")); DebugSerial->println(ts->constrained_temp); }
+                    }
+                    
+                    // Check for new all time positive max temp
+                    if (ts->constrained_temp > sd->AbsoluteMax) 
+                    {
+                        // Update RAM
+                        sd->AbsoluteMax = ts->constrained_temp;
+                        CopyDateTime(CurrentDateTime, &sd->AbsoluteMaxTimeStamp);
+                        // Update EEPROM
+                        switch (ts->sensorName) // offsetof doesn't like pointers
+                        {   case TS_INTERNAL:   
+                                EEPROM.updateInt(offsetof(_eeprom_data, SavedInternalTemp.AbsoluteMax), ts->constrained_temp);  
+                                EEPROM.updateBlock(offsetof(_eeprom_data, SavedInternalTemp.AbsoluteMaxTimeStamp), CurrentDateTime);
+                                break;
+                            case TS_EXTERNAL:   
+                                EEPROM.updateInt(offsetof(_eeprom_data, SavedExternalTemp.AbsoluteMax), ts->constrained_temp);  
+                                EEPROM.updateBlock(offsetof(_eeprom_data, SavedExternalTemp.AbsoluteMaxTimeStamp), CurrentDateTime);
+                                break;
+                            case TS_AUX:        
+                                EEPROM.updateInt(offsetof(_eeprom_data, SavedAuxTemp.AbsoluteMax), ts->constrained_temp);  
+                                EEPROM.updateBlock(offsetof(_eeprom_data, SavedAuxTemp.AbsoluteMaxTimeStamp), CurrentDateTime);
+                                break; 
+                        }
+                        SendDisplay(CMD_TEMP_ALLTIME_MAX_POS, ts->constrained_temp, ts->sensorName);
+                        SendDisplayDateTime(CurrentDateTime);
+                        if (DEBUG) { PrintTempSensorName(ts->sensorName); DebugSerial->print(F(" Temp, New All-Time Max: ")); DebugSerial->println(ts->constrained_temp); }
+                    }
+                    
+                    // Check for new all time positive min temp
+                    if (ts->constrained_temp < sd->AbsoluteMin) 
+                    {
+                        // Update RAM
+                        sd->AbsoluteMin = ts->constrained_temp;     
+                        CopyDateTime(CurrentDateTime, &sd->AbsoluteMinTimeStamp);
+                        // Update EEPROM
+                        switch (ts->sensorName) // offsetof doesn't like pointers
+                        {   case TS_INTERNAL:   
+                                EEPROM.updateInt(offsetof(_eeprom_data, SavedInternalTemp.AbsoluteMin), ts->constrained_temp);  
+                                EEPROM.updateBlock(offsetof(_eeprom_data, SavedInternalTemp.AbsoluteMinTimeStamp), CurrentDateTime);
+                                break;
+                            case TS_EXTERNAL:   
+                                EEPROM.updateInt(offsetof(_eeprom_data, SavedExternalTemp.AbsoluteMin), ts->constrained_temp);  
+                                EEPROM.updateBlock(offsetof(_eeprom_data, SavedExternalTemp.AbsoluteMinTimeStamp), CurrentDateTime);
+                                
+                                break;
+                            case TS_AUX:        
+                                EEPROM.updateInt(offsetof(_eeprom_data, SavedAuxTemp.AbsoluteMin), ts->constrained_temp);  
+                                EEPROM.updateBlock(offsetof(_eeprom_data, SavedAuxTemp.AbsoluteMinTimeStamp), CurrentDateTime);
+                                break; 
+                        }
+                        SendDisplay(CMD_TEMP_ALLTIME_MIN_POS, ts->constrained_temp, ts->sensorName);                    
+                        SendDisplayDateTime(CurrentDateTime);
+                        if (DEBUG) { PrintTempSensorName(ts->sensorName); DebugSerial->print(F(" Temp, New All-Time Min: ")); DebugSerial->println(ts->constrained_temp); }
+                    }
+                }
+                else
+                {
+                    // Send current negative temp
+                    SendDisplay(CMD_TEMP_NEGATIVE, ts->constrained_temp, ts->sensorName);
+                    
+                    // Check for new session max temp (which is below zero, unlikely)
+                    if (ts->constrained_temp > ts->maxSessionTemp) 
+                    {
+                        ts->maxSessionTemp = ts->constrained_temp;
+                        SendDisplay(CMD_TEMP_MAX_NEG, ts->maxSessionTemp, ts->sensorName);
+                        if (DEBUG) { PrintTempSensorName(ts->sensorName); DebugSerial->print(F(" Temp, New Session Max: ")); DebugSerial->println(ts->constrained_temp); }
+                    }
+                    
+                    // Check for new session min temp (below zero, could happen)
+                    if (ts->constrained_temp < ts->minSessionTemp) 
+                    {
+                        ts->minSessionTemp = ts->constrained_temp;
+                        SendDisplay(CMD_TEMP_MIN_NEG, ts->minSessionTemp, ts->sensorName);
+                        if (DEBUG) { PrintTempSensorName(ts->sensorName); DebugSerial->print(F(" Temp, New Session Min: ")); DebugSerial->println(ts->constrained_temp); }
+                    }
+                    
+                    // Check for new all time negative max temp (impossible basically)
+                    if (ts->constrained_temp > sd->AbsoluteMax) 
+                    {
+                        // Update RAM
+                        sd->AbsoluteMax = ts->constrained_temp;                 
+                        CopyDateTime(CurrentDateTime, &sd->AbsoluteMaxTimeStamp);
+                        // Update EEPROM
+                        switch (ts->sensorName) // offsetof doesn't like pointers
+                        {   case TS_INTERNAL:   
+                                EEPROM.updateInt(offsetof(_eeprom_data, SavedInternalTemp.AbsoluteMax), ts->constrained_temp);  
+                                EEPROM.updateBlock(offsetof(_eeprom_data, SavedInternalTemp.AbsoluteMaxTimeStamp), CurrentDateTime);
+                                break;
+                            case TS_EXTERNAL:   
+                                EEPROM.updateInt(offsetof(_eeprom_data, SavedExternalTemp.AbsoluteMax), ts->constrained_temp);  
+                                EEPROM.updateBlock(offsetof(_eeprom_data, SavedExternalTemp.AbsoluteMaxTimeStamp), CurrentDateTime);
+                                break;
+                            case TS_AUX:        
+                                EEPROM.updateInt(offsetof(_eeprom_data, SavedAuxTemp.AbsoluteMax), ts->constrained_temp);  
+                                EEPROM.updateBlock(offsetof(_eeprom_data, SavedAuxTemp.AbsoluteMaxTimeStamp), CurrentDateTime);
+                                break; 
+                        }
+                        SendDisplay(CMD_TEMP_ALLTIME_MAX_NEG, ts->constrained_temp, ts->sensorName);
+                        SendDisplayDateTime(CurrentDateTime);
+                        if (DEBUG) { PrintTempSensorName(ts->sensorName); DebugSerial->print(F(" Temp, New All-Time Max: ")); DebugSerial->println(ts->constrained_temp); }
+                    }
+                    
+                    // Check for new all time negative min temp (quite possible)
+                    if (ts->constrained_temp < sd->AbsoluteMin) 
+                    {
+                        // Update RAM
+                        sd->AbsoluteMin = ts->constrained_temp;
+                        CopyDateTime(CurrentDateTime, &sd->AbsoluteMinTimeStamp);
+                        // Update EEPROM
+                        switch (ts->sensorName) // offsetof doesn't like pointers
+                        {   case TS_INTERNAL:   
+                                EEPROM.updateInt(offsetof(_eeprom_data, SavedInternalTemp.AbsoluteMin), ts->constrained_temp);
+                                EEPROM.updateBlock(offsetof(_eeprom_data, SavedInternalTemp.AbsoluteMinTimeStamp), CurrentDateTime);  
+                                break;
+                            case TS_EXTERNAL:   
+                                EEPROM.updateInt(offsetof(_eeprom_data, SavedExternalTemp.AbsoluteMin), ts->constrained_temp); 
+                                EEPROM.updateBlock(offsetof(_eeprom_data, SavedExternalTemp.AbsoluteMinTimeStamp), CurrentDateTime);   
+                                break;
+                            case TS_AUX:        
+                                EEPROM.updateInt(offsetof(_eeprom_data, SavedAuxTemp.AbsoluteMin), ts->constrained_temp);  
+                                EEPROM.updateBlock(offsetof(_eeprom_data, SavedAuxTemp.AbsoluteMinTimeStamp), CurrentDateTime);  
+                                break; 
+                        }
+                        SendDisplay(CMD_TEMP_ALLTIME_MIN_NEG, ts->constrained_temp, ts->sensorName);
+                        SendDisplayDateTime(CurrentDateTime);
+                        if (DEBUG) { PrintTempSensorName(ts->sensorName); DebugSerial->print(F(" Temp, New All-Time Min: ")); DebugSerial->println(ts->constrained_temp); }
+                    }                    
+                }
+                
                 if (DEBUG)
                 {
-                    // DebugSerial->print(F("Send "));
-                    PrintTempSensorName(ts->sensorName);
-                    DebugSerial->print(F(" Temp: ")); 
-                    DebugSerial->print(ts->constrained_temp); 
-                    // DebugSerial->print(F("* F at Time: ")); 
-                    // DebugSerial->print(ts->lastMeasure);
-                    DebugSerial->println();
+                    // Only show if a change occured
+                    if (ts->constrained_temp != ts->constrained_temp_prior)
+                    {
+                        PrintTempSensorName(ts->sensorName);
+                        DebugSerial->print(F(" Temp: ")); 
+                        DebugSerial->print(ts->constrained_temp); 
+                        DebugSerial->println();
+                        ts->constrained_temp_prior = ts->constrained_temp;
+                    }
                 }
             }
             else
@@ -391,6 +562,37 @@ void SendTempInfo(void)
     }
 }
 
+void SendDisplayAllTimeTemps()
+{
+uint8_t cmd;  
+// We let the display know what the all time min/max temps are for each sensor, once every time the display is turned on
+
+    // Internal: all-time min
+    eeprom.ramcopy.SavedInternalTemp.AbsoluteMin < 0 ? cmd = CMD_TEMP_ALLTIME_MIN_NEG : cmd = CMD_TEMP_ALLTIME_MIN_POS;
+    SendDisplay(cmd, eeprom.ramcopy.SavedInternalTemp.AbsoluteMin, InternalTemp.sensorName);
+    SendDisplayDateTime(eeprom.ramcopy.SavedInternalTemp.AbsoluteMinTimeStamp);
+    // Internal: all-time max
+    eeprom.ramcopy.SavedInternalTemp.AbsoluteMax < 0 ? cmd = CMD_TEMP_ALLTIME_MAX_NEG : cmd = CMD_TEMP_ALLTIME_MAX_POS;
+    SendDisplay(cmd, eeprom.ramcopy.SavedInternalTemp.AbsoluteMax, InternalTemp.sensorName);
+    SendDisplayDateTime(eeprom.ramcopy.SavedInternalTemp.AbsoluteMaxTimeStamp);
+    // External: all-time min
+    eeprom.ramcopy.SavedExternalTemp.AbsoluteMin < 0 ? cmd = CMD_TEMP_ALLTIME_MIN_NEG : cmd = CMD_TEMP_ALLTIME_MIN_POS;
+    SendDisplay(cmd, eeprom.ramcopy.SavedExternalTemp.AbsoluteMin, ExternalTemp.sensorName);
+    SendDisplayDateTime(eeprom.ramcopy.SavedExternalTemp.AbsoluteMinTimeStamp);
+    // External: all-time max
+    eeprom.ramcopy.SavedExternalTemp.AbsoluteMax < 0 ? cmd = CMD_TEMP_ALLTIME_MAX_NEG : cmd = CMD_TEMP_ALLTIME_MAX_POS;
+    SendDisplay(cmd, eeprom.ramcopy.SavedExternalTemp.AbsoluteMax, ExternalTemp.sensorName);
+    SendDisplayDateTime(eeprom.ramcopy.SavedExternalTemp.AbsoluteMaxTimeStamp);
+    // Aux: all-time min
+    eeprom.ramcopy.SavedAuxTemp.AbsoluteMin < 0 ? cmd = CMD_TEMP_ALLTIME_MIN_NEG : cmd = CMD_TEMP_ALLTIME_MIN_POS;
+    SendDisplay(cmd, eeprom.ramcopy.SavedAuxTemp.AbsoluteMin, AuxTemp.sensorName);
+    SendDisplayDateTime(eeprom.ramcopy.SavedAuxTemp.AbsoluteMinTimeStamp);
+    // Aux: all-time max
+    eeprom.ramcopy.SavedAuxTemp.AbsoluteMax < 0 ? cmd = CMD_TEMP_ALLTIME_MAX_NEG : cmd = CMD_TEMP_ALLTIME_MAX_POS;
+    SendDisplay(cmd, eeprom.ramcopy.SavedAuxTemp.AbsoluteMax, AuxTemp.sensorName);
+    SendDisplayDateTime(eeprom.ramcopy.SavedAuxTemp.AbsoluteMaxTimeStamp);
+}
+
 
 void PrintTempSensorName(char n)
 {
@@ -402,4 +604,14 @@ void PrintTempSensorName(char n)
     }
 }
 
+void PrintTempSensorType(byte s)
+{
+    switch (s)
+    {
+        case 1: DebugSerial->print(F("DS18S20"));   break;
+        case 2: DebugSerial->print(F("DS18B20"));   break;
+        case 3: DebugSerial->print(F("DS1822"));    break;
+        default: DebugSerial->print(F("Unknown"));  break;
+    }
+}
 

@@ -51,13 +51,14 @@ void SendVoltageInfo()
     
     SendDisplay(CMD_VOLTAGE, iSendVoltage);                                             // Chips ahoy! 
 
-    if (DEBUG)
+    if (DEBUG && (int32_t)BattVoltage != (int32_t)BattVoltage_Prior)
     {
         DebugSerial->print(F("Battery voltage: ")); 
         DebugSerial->print(BattVoltage, 1);
         DebugSerial->print(F(" ("));
         DebugSerial->print(iSendVoltage);
         DebugSerial->println(F(")"));     
+        BattVoltage_Prior = BattVoltage; 
     }        
 }
 

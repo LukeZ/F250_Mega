@@ -222,11 +222,39 @@ void UpdateGPSData(void)
         // Altitude
         // ------------------------------------------------------------------------------------------------
         GPS_Altitude_Meters = GPS.altitude;
+
+        // Change in fix quality - really only for debugging
+        // ------------------------------------------------------------------------------------------------
+        /*
+        if (GPS_Fix_Quality != GPS.fixquality)
+        {
+            if (DEBUG)
+            {
+                DebugSerial->print(F("GPS Fix quality changed to: "));
+                if (GPS.fixquality == 0)        DebugSerial->println(F("Invalid"));
+                else if (GPS.fixquality == 1)   DebugSerial->println(F("Simple GPS"));
+                else if (GPS.fixquality == 2)   DebugSerial->println(F("Differential GPS (DGPS)"));
+                else { DebugSerial->print(F("Unknown: ")); DebugSerial->println(GPS.fixquality); }
+            }
+            GPS_Fix_Quality = GPS.fixquality;    
+        }
+        */
+        
     }
+
+    // Routine Tasks (with or without Fix)
+    // ------------------------------------------------------------------------------------------------------------------------------------->>    
+    // With the coin cell the RTC internal to the GPS will keep accurate time whether we have a fix or not, so we update the current time
+    AdjustGPSDateTime();        // This saves an adjusted time/date in the CurrentDateTime struct, accounts for offset from UTC based on current timezone, DST, and leap year
 }
 
 void SendGPSInfo(void)
 {
+    static int16_t lastMinute = CurrentDateTime.minute; 
+    static int16_t lastMinuteDebug = CurrentDateTime.minute; 
+    static uint8_t lastSecond = CurrentDateTime.second;
+    static uint8_t lastSecondDebug = CurrentDateTime.second;
+    
     // Here we send GPS data to the display, if there is any. This is not the same as collecting, parsing, massaging data from the GPS, which takes care of itself elsewhere
 
     // Fix Status Change
@@ -248,7 +276,12 @@ void SendGPSInfo(void)
 
     // Fix Status (we always send this regardless)
     // ------------------------------------------------------------------------------------------------------------------------------------->>        
-    SendDisplay(CMD_GPS_FIX, GPS.fix, GPS.fixquality);          // Fix is true or false (0 or 1), Modifier holds fix quality (0 = no fix, 1 = GPS, 2 = DGPS meaning very accurate, it shows my actual bedroom on Google maps if quality = 2)
+        SendDisplay(CMD_GPS_FIX, GPS.fix, GPS.fixquality);          // Fix is true or false (0 or 1), Modifier holds fix quality (0 = no fix, 1 = GPS, 2 = DGPS meaning very accurate, it shows my actual bedroom on Google maps if quality = 2)
+
+
+    // Debug time if ten seconds have passed or the minute has changed
+    // ------------------------------------------------------------------------------------------------------------------------------------->>        
+    if (DEBUG && ((CurrentDateTime.second - lastSecondDebug) > 10) || (CurrentDateTime.minute != lastMinuteDebug)) { DebugPrintDateTime(CurrentDateTime); DebugSerial->print(F("  ")); DebugPrintGPSDateTime(); DebugSerial->println(); lastSecondDebug = CurrentDateTime.second; lastMinuteDebug = CurrentDateTime.minute; } 
 
 
     // Stuff we send only with Fix
@@ -259,13 +292,14 @@ void SendGPSInfo(void)
         // ------------------------------------------------------------------------------------------------
         SendDisplay(CMD_GPS_SATELLITES, GPS.satellites);
 
-        // Date and time
+        // Date and time (every ten seconds or new minute)
         // ------------------------------------------------------------------------------------------------
-        AdjustGPSDateTime();                                    // This saves an adjusted time/date in local variables, in case we care. Accounts for time zone, DST and leap year
-        SendDisplay(CMD_GPS_YEAR, DateTime.Year);               // Value holds year after 2000
-        SendDisplay(CMD_MONTH_DAY, DateTime.Month, DateTime.Day);       // Value holds month (1-12), Modifier holds day (0-31)
-        SendDisplay(CMD_HOUR_MINUTE, DateTime.Hour, DateTime.Minute);   // Value holds hour (0-23), Modifier holds minute (0-59)
-        
+        if (((CurrentDateTime.second - lastSecondDebug) > 10) || (CurrentDateTime.minute != lastMinute))
+        {
+            SendDisplayDateTime(CurrentDateTime);
+            lastMinute = CurrentDateTime.minute;
+        }
+
         // Speed & Max speed 
         // ------------------------------------------------------------------------------------------------
         if (MPH > Max_MPH)
@@ -278,6 +312,17 @@ void SendGPSInfo(void)
             SendDisplay(CMD_SPEED_MPH, MPH, 0);                 // Modifier 0 means this is regular speed
         }
 
+        // Heading in degrees and course
+        // ------------------------------------------------------------------------------------------------
+        if (MPH > 0)    // Only update headings if we are moving
+        {
+            int16_t angle = (int16_t)(GPS.angle + 0.5);                     // Take heading in degrees, round and convert to integer
+            if (angle > 180) SendDisplay(CMD_GPS_ANGLE, (angle - 180), 1);  // Modifier = 1 means this angle needs +180 added to it
+            else             SendDisplay(CMD_GPS_ANGLE, angle, 0);          // Modifier = 0 means this angle is the direct number (but won't exceed 180)
+            SendDisplay(CMD_GPS_HEADING, cardinalDirection(GPS.angle));     // Value contains a number from 0-15 representing one of the 16 cardinal directions 
+        }
+
+            
         // Altitude
         // ------------------------------------------------------------------------------------------------
         int16_t iAlt = (int16_t)(abs(MetersToFeet(GPS_Altitude_Meters)) + 0.5);      // Convert to rounded absolute integer in feet
@@ -288,17 +333,12 @@ void SendGPSInfo(void)
         // Test putting the number back together - yes, it works
         // if (DEBUG) { Serial.print(F("Altitude (feet): ")); Serial.println((Alt_Hundreds * 100) + Alt_Tens); }
 
-        // Heading in degrees and course
-        // ------------------------------------------------------------------------------------------------
-        // 
+           
 
-
+/*
         if (DEBUG)
         {
             DebugSerial->print(F("Fix: ")); DebugSerial->print((int)GPS.fix); DebugSerial->print(F(" quality: ")); DebugSerial->print((int)GPS.fixquality); DebugSerial->print(F(" satellites: ")); DebugSerial->println((int)GPS.satellites);
-            DebugSerial->print(DateTime.Month, DEC); DebugSerial->print('/'); DebugSerial->print(DateTime.Day, DEC); DebugSerial->print("/20"); DebugSerial->print(DateTime.Year, DEC);
-            DebugSerial->print(" ");            
-            DebugSerial->print(DateTime.Hour, DEC); DebugSerial->print(':'); DebugSerial->print(DateTime.Minute, DEC); DebugSerial->print(':'); DebugSerial->println(DateTime.Second, DEC); 
             DebugSerial->print(F("Coordinates: ")); DebugSerial->print(GPS.latitudeDegrees, 4); DebugSerial->print(F(", ")); DebugSerial->println(GPS.longitudeDegrees, 4);
             DebugSerial->print(F("MPH: ")); DebugSerial->println(MPH);
             DebugSerial->print(F("Angle: ")); DebugSerial->println((int16_t)(GPS.angle + 0.5));
@@ -306,6 +346,7 @@ void SendGPSInfo(void)
             DebugSerial->print(F("Altitude: ")); DebugSerial->print(MetersToFeet(GPS.altitude), 0); DebugSerial->println(" ft");
             DebugSerial->println();
         }
+        */
     }
 }
 
@@ -398,6 +439,12 @@ double courseTo(double lat1, double long1, double lat2, double long2)
   return degrees(a2);
 }
 
+int16_t cardinalDirection(double course)
+{ 
+  // Converts a course heading (North = 0, West = 270) into a direction code from 0-15 representing one of the 16 cardinal directions
+  int direction = (int)((course + 11.25f) / 22.5f);
+  return (direction % 16);
+}
 const char *cardinal(double course)
 {
   // Returns a friendly course name if passed a heading where North = 0, West = 270
@@ -427,76 +474,242 @@ float KnotsToMPH(float knots)
     return (knots * 1.150779);
 }
 
+void CopyDateTime(_datetime FromDT, _datetime *ToDT)
+{
+    ToDT->hour = FromDT.hour;
+    ToDT->minute = FromDT.minute;
+    ToDT->second = FromDT.second;
+    ToDT->year = FromDT.year;
+    ToDT->month = FromDT.month;
+    ToDT->day = FromDT.day;
+}
+
+_datetime getBlankDateTime()
+{
+    _datetime dt; 
+    dt.year = 0;
+    dt.month = 1;
+    dt.day = 1;
+    dt.hour = dt.minute = dt.second = 0;
+    return dt;
+}
+
 void AdjustGPSDateTime()
 {
-    // Only call this if you have a GPS fix
+    #define NUM_VALID_READINGS_REQD     5    
+    static boolean areWeValid = false;
+    static uint8_t validReadingCount = 0;
+    static _datetime lastDT = getBlankDateTime();
+    _datetime dt;    
+
+
+    // Sanity check everything, if something looks off, skip this reading
+    if (GPS.day < 1 || GPS.day > 31) return; 
+    if (GPS.month < 1 || GPS.month > 12) return;
+    if (GPS.year < 0 || GPS.year > 99) return;
+    if (GPS.hour < 0 || GPS.hour > 23) return;
+    if (GPS.minute < 0 || GPS.minute > 59) return;
+    if (GPS.seconds < 0 || GPS.seconds > 59) return;
+
+    // GPS values are technically correct, copy to our local struct
+    dt.hour = GPS.hour;
+    dt.minute = GPS.minute;
+    dt.second = GPS.seconds;
+    dt.year = GPS.year;       // 2-digit
+    dt.month = GPS.month;
+    dt.day = GPS.day;
+
+    // In addition to being technically correct, we only accept readings that are not very different from the prior reading. 
+    // We're getting time data 5 times a second so if we are off by some large amount the reading is a glitch and we don't want it. 
+    if ((abs(MinutesSinceMidnight(dt) - MinutesSinceMidnight(lastDT)) > 1) || (abs(DayOfYear(dt) - DayOfYear(lastDT)) > 1)) 
+    {
+        areWeValid = false;             // A glitch or some other error has occured, clear the valid flag
+        /*  
+        if (DEBUG)                      // Turns out there are lots of glitches... but all this does serve to eliminate them
+        {
+            DebugSerial->print(F("Invalid Time Ignored: ")); 
+            DebugPrintGPSDateTime();
+            DebugSerial->print(F(" Current/Last MsM: ")); 
+            DebugSerial->print(MinutesSinceMidnight(dt));
+            DebugSerial->print(F("/")); 
+            DebugSerial->print(MinutesSinceMidnight(lastDT));
+            DebugSerial->print(F(", DoY: ")); 
+            DebugSerial->print(DayOfYear(dt));
+            DebugSerial->print(F("/")); 
+            DebugSerial->print(DayOfYear(lastDT));
+            DebugSerial->println();        
+        }
+        */
+    }
+    else 
+    {
+        if (!areWeValid)                
+        {
+            validReadingCount += 1;         // If we aren't presently valid, but we received a valid reading, increment the count.     
+        
+            // If the count exceeds our threshold, we become valid
+            if (validReadingCount > NUM_VALID_READINGS_REQD)   
+            {
+                areWeValid = true;          // We've acquired enough consecutive valid readings
+                validReadingCount = 0;      // Reset count for next glitch
+            }
+        }
+    }
+
+    // Regardless of the above, we copy this reading to last reading for our next time through
+    CopyDateTime(dt, &lastDT);  
+
+    // Now - if we are not valid, we're done
+    if (!areWeValid) return;
+
+    // Otherwise, we can continue and convert UTC time to our local time
+
+    // Leap year adjustment, simple
+    // if (dt.year % 4 == 0) DaysInMonth[1] = 29; 
     
-    DateTime.Hour = GPS.hour;
-    DateTime.Minute = GPS.minute;
-    DateTime.Second = GPS.seconds;
-    DateTime.Year = GPS.year;       // 2-digit
-    DateTime.Month = GPS.month;
-    DateTime.Day = GPS.day;
-
-
-    // Leap year adjustment
-    if (DateTime.Year % 4 == 0) DaysInMonth[1] = 29; 
+    // Leap year adjustment 
+    if (dt.year % 4  == 0) 
+    {
+        if (dt.year % 100 != 0) 
+        {
+            DaysInMonth[1] = 29;
+        }
+        else 
+        {
+            if (dt.year % 400 == 0) 
+            {
+                DaysInMonth[1] = 29;
+            }
+        }
+    }
           
     //Time zone adjustment
-    DateTime.Hour += UTC_Offset[eeprom.ramcopy.Timezone];  // Timezone is AKST, PST, MST, CST, EST, and the array holds the UTC offsets for each one
+    dt.hour += UTC_Offset[eeprom.ramcopy.Timezone];  // Timezone is AKST, PST, MST, CST, EST, and the array holds the UTC offsets for each one
 
     //DST adjustment
-    if (DateTime.Month * 100 + DateTime.Day >= DSTbegin[DateTime.Year - 13] && DateTime.Month * 100 + DateTime.Day < DSTend[DateTime.Year - 13]) DateTime.Hour += 1;
+    if (dt.month * 100 + dt.day >= DSTbegin[dt.year - 13] && dt.month * 100 + dt.day < DSTend[dt.year - 13]) dt.hour += 1;
     
-    if (DateTime.Hour < 0)
+    if (dt.hour < 0)
     {
-        DateTime.Hour += 24;
-        DateTime.Day -= 1;
-        if (DateTime.Day < 1)
+        dt.hour += 24;
+        dt.day -= 1;
+        if (dt.day < 1)
         {
-            if (DateTime.Month == 1)
+            if (dt.month == 1)
             {
-                DateTime.Month = 12;
-                DateTime.Year -= 1;
+                dt.month = 12;
+                dt.year -= 1;
             }
             else
             {
-                DateTime.Month -= 1;
+                dt.month -= 1;
             }
-            DateTime.Day = DaysInMonth[DateTime.Month - 1];
+            dt.day = DaysInMonth[dt.month - 1];
         }
     }
     
-    if (DateTime.Hour >= 24)
+    if (dt.hour >= 24)
     {
-        DateTime.Hour -= 24;
-        DateTime.Day += 1;
-        if (DateTime.Day > DaysInMonth[DateTime.Month - 1])
+        dt.hour -= 24;
+        dt.day += 1;
+        if (dt.day > DaysInMonth[dt.month - 1])
         {
-            DateTime.Day = 1;
-            DateTime.Month += 1;
-            if (DateTime.Month > 12) DateTime.Year += 1;
+            dt.day = 1;
+            dt.month += 1;
+            if (dt.month > 12) dt.year += 1;
         }
     }
+
+    // If we make it here we have a valid reading converted to our local timezone. 
+    CopyDateTime(dt, &CurrentDateTime);         // Everything checks out, save this to our global CurrentDateTime
 
     // To see current adjusted date/time to make sure it works - yes, it does
     /*
     if (DEBUG)
     {
         DebugSerial->print(F("Current Adjusted Time: "));
-        DebugSerial->print(DateTime.Month, DEC);
+        DebugSerial->print(CurrentDateTime.Month, DEC);
         DebugSerial->print('/');
-        DebugSerial->print(DateTime.Day, DEC); 
+        DebugSerial->print(CurrentDateTime.Day, DEC); 
         DebugSerial->print("/20");
-        DebugSerial->print(DateTime.Year, DEC);
+        DebugSerial->print(CurrentDateTime.Year, DEC);
         DebugSerial->print(" ");            
-        DebugSerial->print(DateTime.Hour, DEC); DebugSerial->print(':');
-        DebugSerial->print(DateTime.Minute, DEC); DebugSerial->print(':');
-        DebugSerial->println(DateTime.Second, DEC); 
+        DebugSerial->print(CurrentDateTime.Hour, DEC); DebugSerial->print(':');
+        DebugSerial->print(CurrentDateTime.Minute, DEC); DebugSerial->print(':');
+        DebugSerial->println(CurrentDateTime.Second, DEC); 
     }
     */
 }
 
+int MinutesSinceMidnight(_datetime dt)
+{
+    return ((dt.hour * 60) + dt.minute);
+}
+
+int DayOfYear(_datetime dt)     // Only works on years from 2000 forward
+{
+    int daysInMonth[] = {31,28,31,30,31,30,31,31,30,31,30,31};
+    
+    // We need a 4-digit year
+    if (dt.year < 0 || dt.year > 99) return 999;
+    else dt.year = dt.year + 2000;
+
+    // Check if it is a leap year, this is confusing business
+    // See: https://support.microsoft.com/en-us/kb/214019
+    if (dt.year % 4  == 0) 
+    {
+        if (dt.year % 100 != 0) 
+        {
+            daysInMonth[1] = 29;
+        }
+        else 
+        {
+            if (dt.year % 400 == 0) 
+            {
+                daysInMonth[1] = 29;
+            }
+        }
+    }
+    
+    // Make sure we are on a valid day of the month
+    if (dt.day < 1) return 999;
+    else if (dt.day > daysInMonth[dt.month-1]) return 999;
+    
+    int doy = 0;
+    for (int i = 0; i < dt.month - 1; i++) 
+    {
+        doy += daysInMonth[i];
+    }
+    
+    doy += dt.day;
+    return doy;
+}
+
+void DebugPrintDateTime(_datetime dt)
+{            
+    DebugSerial->print(dt.month, DEC); DebugSerial->print('/'); DebugSerial->print(dt.day, DEC); DebugSerial->print("/20"); DebugSerial->print(dt.year, DEC);
+    DebugSerial->print(" ");            
+    DebugSerial->print(dt.hour, DEC); DebugSerial->print(':'); 
+    if (dt.minute < 10) DebugSerial->print(F("0")); DebugSerial->print(dt.minute, DEC); DebugSerial->print(':');    // Minute gets leading zero
+    if (dt.second < 10) DebugSerial->print(F("0")); DebugSerial->print(dt.second, DEC);                             // Second gets leading zero
+}
+
+void DebugPrintGPSDateTime()
+{
+    DebugSerial->print(F("GPS Time: "));
+    DebugSerial->print(GPS.month, DEC); DebugSerial->print('/'); DebugSerial->print(GPS.day, DEC); DebugSerial->print("/20"); DebugSerial->print(GPS.year, DEC);
+    DebugSerial->print(" ");            
+    DebugSerial->print(GPS.hour, DEC); DebugSerial->print(':'); 
+    if (GPS.minute < 10) DebugSerial->print(F("0")); DebugSerial->print(GPS.minute, DEC); DebugSerial->print(':');    // Minute gets leading zero
+    if (GPS.seconds < 10) DebugSerial->print(F("0")); DebugSerial->print(GPS.seconds, DEC);      
+}
+
+void SendDisplayDateTime(_datetime dt)
+{
+    SendDisplay(CMD_YEAR, dt.year);                       // Value holds year after 2000
+    SendDisplay(CMD_MONTH_DAY, dt.month, dt.day);         // Value holds month (1-12), Modifier holds day (0-31)
+    SendDisplay(CMD_HOUR_MINUTE, dt.hour, dt.minute);     // Value holds hour (0-23), Modifier holds minute (0-59)
+}                       
 
 void TestDistCalcs(void)
 {

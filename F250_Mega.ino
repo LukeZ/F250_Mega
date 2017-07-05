@@ -147,11 +147,11 @@
         
         boolean GPSECHO                         = false;            // Set GPSECHO to 'false' to turn off echoing the GPS data to the Serial console. Set to 'true' if you want to debug and listen to the raw GPS sentences. 
                                                                     // We want it off except for debugging if necessary. 
-                                                                        
         boolean GPS_Interrupt_Active            = false;            // This keeps track of whether the every 1mS interrupt to check for received GPS data is active or not (I don't think we actually need this variable anywhere)
         void Enable_GPS_Interrupt(boolean);                         // Func prototype keeps Arduino 0023 happy
         boolean GPS_FirstFix                    = false;            // We can check a few things when a fix is first obtained, like antenna status, that we won't need to check later. 
         boolean GPS_Fixed = false;                                  // An internal tracking variable, separate from the GPS library variable, will also let us track changes in the fix status
+        uint8_t GPS_Fix_Quality                 = 0;                // So we can track changes
         uint8_t GPS_Antenna_Status              = ANTENNA_STAT_UNKNOWN; // Antenna status
         boolean GPS_Antenna_Status_Known        = false;            // Did we figure out the antenna status yet
 
@@ -167,16 +167,7 @@
         int DSTbegin[] = { 310, 309, 308, 313, 312, 311, 310, 308, 314, 313, 312, 310, 309 };               // DST 2013 - 2025 in Canada and US
         int DSTend[] = { 1103, 1102, 1101, 1106, 1105, 1104, 1103, 1101, 1107, 1106, 1105, 1103, 1102 };    // DST 2013 - 2025 in Canada and US
         int DaysInMonth[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };                             // Number of days in month, non-leap-year years
-        struct _datetime
-        {          
-            int Hour;
-            int Minute;
-            int Second;
-            int Year;           // 2 digit year only
-            int Month;
-            int Day;
-        };
-        _datetime DateTime;
+        _datetime CurrentDateTime;                                                                          // What is the current time
 
         // GPS Speed
         uint8_t MPH;                                                // Miles per hour, integer, can't exceed 255. Shouldn't be a problem.
@@ -221,6 +212,9 @@
             byte type_s;                                            // Sensor type 1 = DS18S20 or old DS1820, 0 = DS18B20 or DS1822
             float temperature;                                      // Current temperature in Fahrenheit
             int16_t constrained_temp;                               // Integer value between -255 and 255
+            int16_t constrained_temp_prior;                         // Last reading since change
+            int16_t minSessionTemp;                                 // Min temp of this session
+            int16_t maxSessionTemp;                                 // Max temp of this session
             boolean readingStarted;
             boolean newData;
             boolean sensorLost;                                     // Have we lost the sensor
@@ -243,13 +237,15 @@
 
     // VOLTAGE SENSOR
     //--------------------------------------------------------------------------------------------------------------------------------------------------->>
-        const int VOLTAGE_NTAPS                 = 10;               // Number of elements in the FIR filter for voltage readings. Temp is read approximately every (1 sec * number of sensors) seconds (2-3 sec)
-        float BattVoltageFIR[VOLTAGE_NTAPS];                        // Filter line for voltage readings
-        float BattVoltage                       = 0;                // Averaged battery voltage
+        // Take a measurement once per second, average over the last 10 measurements (10 seconds). Send update to screen every 3 seconds. 
         #define VOLTAGE_CHECK_FREQ              1000                // How often to take voltage measurement
-        #define VOLTAGE_SEND_FREQ               4000                // How often to send voltage measurement to the screen in mS        
+        #define VOLTAGE_SEND_FREQ               3000                // How often to send voltage measurement to the screen in mS        
         int TimerID_VoltageSensorCheck          = 0;                // Timer that polls the bus to detect attached temperature sensors
         int TimerID_VoltageSender               = 0;                // Timer that sends the readings to the display on some schedule
+        const int VOLTAGE_NTAPS                 = 10;               // Number of elements in the FIR filter for voltage readings.
+        float BattVoltageFIR[VOLTAGE_NTAPS];                        // Filter line for voltage readings
+        float BattVoltage                       = 0;                // Averaged battery voltage
+        float BattVoltage_Prior                 = 0;    
         
     
     // GSM BOARD
@@ -381,8 +377,8 @@ void loop(void)
                 TurnOnDisplay();                                        // Turn on the display 
                 InitSessionMinMaxes();                                  // Clear session min/maxes
                 TurnOnGPS();                                            // Get the GPS going, this one takes a while, do it before the others
-                StartTempReadings();                                    // Start reading temperature data and sending it to the display
-                StartVoltageReadings();                                 // Start reading battery voltage
+//                StartTempReadings();                                    // Start reading temperature data and sending it to the display
+//                StartVoltageReadings();                                 // Start reading battery voltage
                 // This will start a repeating timer that will send status updates to the display whether anything has changed or not
                 // Below in the ON state we will also continuously check a Poll routine that will additionally send pertinent updates
                 // the moment any changes are detected. 
@@ -443,8 +439,13 @@ void DoVehicleOnStuff(void)
 
 void InitSessionMinMaxes(void)
 {
-    Max_MPH = 0;                    // What is the fastest we've gone since the car was turned on
-    
+    Max_MPH = 0;                            // What is the fastest we've gone since the car was turned on
+    InternalTemp.minSessionTemp = 200;      // Initialize min/max to values that will be overwritten quickly
+    InternalTemp.maxSessionTemp = -50;            
+    ExternalTemp.minSessionTemp = 200;      // Initialize min/max to values that will be overwritten quickly
+    ExternalTemp.maxSessionTemp = -50;            
+    AuxTemp.minSessionTemp = 200;      // Initialize min/max to values that will be overwritten quickly
+    AuxTemp.maxSessionTemp = -50;                    
 }
 
 void PollInputs()

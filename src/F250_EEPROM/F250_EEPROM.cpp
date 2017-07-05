@@ -70,6 +70,54 @@ void F250_EEPROM::Initialize_RAMcopy(void)
 
     // Time stuff
         ramcopy.Timezone = CST;
+
+    // Temp stuff
+        // Absolute min/max internal
+        ramcopy.SavedInternalTemp.AbsoluteMin = 200;                // Initialize to something that will quickly get over-written with actual data
+        ramcopy.SavedInternalTemp.AbsoluteMinTimeStamp.month = 1;   // Timestamp 1/1/2017 at 12:00:00 noon
+        ramcopy.SavedInternalTemp.AbsoluteMinTimeStamp.day = 1;
+        ramcopy.SavedInternalTemp.AbsoluteMinTimeStamp.year = 17;
+        ramcopy.SavedInternalTemp.AbsoluteMinTimeStamp.hour = 12;
+        ramcopy.SavedInternalTemp.AbsoluteMinTimeStamp.minute = 0;
+        ramcopy.SavedInternalTemp.AbsoluteMinTimeStamp.second = 0;
+        ramcopy.SavedInternalTemp.AbsoluteMax = -50;
+        ramcopy.SavedInternalTemp.AbsoluteMaxTimeStamp.month = 1;   // Timestamp 1/1/2017 at 12:00:00 noon
+        ramcopy.SavedInternalTemp.AbsoluteMaxTimeStamp.day = 1;
+        ramcopy.SavedInternalTemp.AbsoluteMaxTimeStamp.year = 17;
+        ramcopy.SavedInternalTemp.AbsoluteMaxTimeStamp.hour = 12;
+        ramcopy.SavedInternalTemp.AbsoluteMaxTimeStamp.minute = 0;
+        ramcopy.SavedInternalTemp.AbsoluteMaxTimeStamp.second = 0;
+        // Absolute min/max external
+        ramcopy.SavedExternalTemp.AbsoluteMin = 200;                // Initialize to something that will quickly get over-written with actual data
+        ramcopy.SavedExternalTemp.AbsoluteMinTimeStamp.month = 1;   // Timestamp 1/1/2017 at 12:00:00 noon
+        ramcopy.SavedExternalTemp.AbsoluteMinTimeStamp.day = 1;
+        ramcopy.SavedExternalTemp.AbsoluteMinTimeStamp.year = 17;
+        ramcopy.SavedExternalTemp.AbsoluteMinTimeStamp.hour = 12;
+        ramcopy.SavedExternalTemp.AbsoluteMinTimeStamp.minute = 0;
+        ramcopy.SavedExternalTemp.AbsoluteMinTimeStamp.second = 0;
+        ramcopy.SavedExternalTemp.AbsoluteMax = -50;
+        ramcopy.SavedExternalTemp.AbsoluteMaxTimeStamp.month = 1;   // Timestamp 1/1/2017 at 12:00:00 noon
+        ramcopy.SavedExternalTemp.AbsoluteMaxTimeStamp.day = 1;
+        ramcopy.SavedExternalTemp.AbsoluteMaxTimeStamp.year = 17;
+        ramcopy.SavedExternalTemp.AbsoluteMaxTimeStamp.hour = 12;
+        ramcopy.SavedExternalTemp.AbsoluteMaxTimeStamp.minute = 0;
+        ramcopy.SavedExternalTemp.AbsoluteMaxTimeStamp.second = 0;
+        // Absolute min/max aux
+        ramcopy.SavedAuxTemp.AbsoluteMin = 200;                // Initialize to something that will quickly get over-written with actual data
+        ramcopy.SavedAuxTemp.AbsoluteMinTimeStamp.month = 1;   // Timestamp 1/1/2017 at 12:00:00 noon
+        ramcopy.SavedAuxTemp.AbsoluteMinTimeStamp.day = 1;
+        ramcopy.SavedAuxTemp.AbsoluteMinTimeStamp.year = 17;
+        ramcopy.SavedAuxTemp.AbsoluteMinTimeStamp.hour = 12;
+        ramcopy.SavedAuxTemp.AbsoluteMinTimeStamp.minute = 0;
+        ramcopy.SavedAuxTemp.AbsoluteMinTimeStamp.second = 0;
+        ramcopy.SavedAuxTemp.AbsoluteMax = -50;
+        ramcopy.SavedAuxTemp.AbsoluteMaxTimeStamp.month = 1;   // Timestamp 1/1/2017 at 12:00:00 noon
+        ramcopy.SavedAuxTemp.AbsoluteMaxTimeStamp.day = 1;
+        ramcopy.SavedAuxTemp.AbsoluteMaxTimeStamp.year = 17;
+        ramcopy.SavedAuxTemp.AbsoluteMaxTimeStamp.hour = 12;
+        ramcopy.SavedAuxTemp.AbsoluteMaxTimeStamp.minute = 0;
+        ramcopy.SavedAuxTemp.AbsoluteMaxTimeStamp.second = 0;
+
     
     // Altitude stuff
         // Current adjustment, based on an altitude received from the display
