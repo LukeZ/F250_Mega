@@ -19,6 +19,16 @@
 //   You can actually just use the parser command GPS.sendCommand(PGCMD_ANTENNA) during setup to request this sentence or PGCMD_NOANTENNA to stop it
 //   The external antenna is more sensitive (and necessary in my case), but it does draw an extra 10-20mA current when GPS is enabled. 
 
+void TurnOffGPS(void) 
+{
+    digitalWrite(GPS_EN, LOW);          // Turn off the GPS
+    Enable_GPS_Interrupt(false);        // Stop the routine interrupt that checks for serial data on the GPS serial port (there won't be any anyway)
+    GPS_FirstFix = false;               // Reset the fix flag
+    GPS_Antenna_Status_Known = false;   // Reset the antenna known flag
+    if (TimerID_GPSSender > 0) timer.disable(TimerID_GPSSender);   // If the GPS is turned off we don't need to send info the display (GPS off is not the same as GPS doesn't have a fix)
+    if (DEBUG) DebugSerial->println(F("GPS turned off")); 
+}
+
 void TurnOnGPS()
 {
     // Set the Enable pin high
@@ -214,6 +224,13 @@ void UpdateGPSData(void)
         MPH = constrain((uint8_t)(GPS_Avg_Speed_Knots + 0.5), 0, 255);                      // Round to nearest MPH and constrain to 255
         if (MPH < Minimum_MPH) MPH = 0;                                                     // If below a threshold amount, we ignore the speed as GPS noise
 
+        // Bearing
+        // ------------------------------------------------------------------------------------------------        
+        if (MPH >= Minimum_MPH)                                                             // We only bother with bearing if we are moving at some minimum speed
+        {
+            GPS_Avg_Bearing = fir_basic(GPS.angle, GPS_BEARING_NTAPS, GPSBearingFIR);       // Update average reading (degrees)
+        }
+
         // Save coordinates
         // ------------------------------------------------------------------------------------------------
         Current_Latitude = GPS.latitudeDegrees;
@@ -239,7 +256,6 @@ void UpdateGPSData(void)
             GPS_Fix_Quality = GPS.fixquality;    
         }
         */
-        
     }
 
     // Routine Tasks (with or without Fix)
@@ -304,19 +320,19 @@ void SendGPSInfo(void)
         // ------------------------------------------------------------------------------------------------
         if (MPH > Max_MPH)
         {
-            SendDisplay(CMD_SPEED_MPH, MPH, 1);                 // Modifier 1 means this is a new max
+            SendDisplay(CMD_SPEED_MPH, MPH, 1);                             // Modifier 1 means this is a new max
             Max_MPH = MPH;
         }
         else
         {
-            SendDisplay(CMD_SPEED_MPH, MPH, 0);                 // Modifier 0 means this is regular speed
+            SendDisplay(CMD_SPEED_MPH, MPH, 0);                             // Modifier 0 means this is regular speed
         }
 
         // Heading in degrees and course
         // ------------------------------------------------------------------------------------------------
-        if (MPH > 0)    // Only update headings if we are moving
+        if (MPH >= Minimum_MPH)                                             // Only update headings if we are moving
         {
-            int16_t angle = (int16_t)(GPS.angle + 0.5);                     // Take heading in degrees, round and convert to integer
+            int16_t angle = (int16_t)(GPS_Avg_Bearing + 0.5);               // Round averaged bearing and convert to integer
             if (angle > 180) SendDisplay(CMD_GPS_ANGLE, (angle - 180), 1);  // Modifier = 1 means this angle needs +180 added to it
             else             SendDisplay(CMD_GPS_ANGLE, angle, 0);          // Modifier = 0 means this angle is the direct number (but won't exceed 180)
             SendDisplay(CMD_GPS_HEADING, cardinalDirection(GPS.angle));     // Value contains a number from 0-15 representing one of the 16 cardinal directions 
@@ -326,8 +342,8 @@ void SendGPSInfo(void)
         // Altitude
         // ------------------------------------------------------------------------------------------------
         int16_t iAlt = (int16_t)(abs(MetersToFeet(GPS_Altitude_Meters)) + 0.5);      // Convert to rounded absolute integer in feet
-        uint8_t Alt_Tens = iAlt % 100;                          // Number of feet under 100
-        uint8_t Alt_Hundreds = iAlt / 100;                      // Number of feet over 100, divided by 100
+        uint8_t Alt_Tens = iAlt % 100;                                      // Number of feet under 100
+        uint8_t Alt_Hundreds = iAlt / 100;                                  // Number of feet over 100, divided by 100
         if (GPS_Altitude_Meters < 0) SendDisplay(CMD_GPS_ALTITUDE_POS, Alt_Hundreds, Alt_Tens); 
         else                         SendDisplay(CMD_GPS_ALTITUDE_NEG, Alt_Hundreds, Alt_Tens); 
         // Test putting the number back together - yes, it works
@@ -349,17 +365,6 @@ void SendGPSInfo(void)
         */
     }
 }
-
-void TurnOffGPS(void) 
-{
-    digitalWrite(GPS_EN, LOW);          // Turn off the GPS
-    Enable_GPS_Interrupt(false);        // Stop the routine interrupt that checks for serial data on the GPS serial port (there won't be any anyway)
-    GPS_FirstFix = false;               // Reset the fix flag
-    GPS_Antenna_Status_Known = false;   // Reset the antenna known flag
-    if (TimerID_GPSSender > 0) timer.disable(TimerID_GPSSender);   // If the GPS is turned off we don't need to send info the display (GPS off is not the same as GPS doesn't have a fix)
-    if (DEBUG) DebugSerial->println(F("GPS turned off")); 
-}
-
 
 void CheckLocationAgainstHome(void)
 {

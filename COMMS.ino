@@ -140,6 +140,7 @@ void ProcessCommand(DataSentence * sentence)
                     EEPROM.updateBlock(offsetof(_eeprom_data, SavedAuxTemp.AbsoluteMinTimeStamp), CurrentDateTime);
                     break;                    
             }
+            break;
 
         default:
             break;

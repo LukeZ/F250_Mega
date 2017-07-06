@@ -5,11 +5,10 @@
 #include "src/EEPROMex/EEPROMex.h"  
 #include "src/F250_SimpleTimer/F250_SimpleTimer.h"
 #include "src/Sleepy/Sleepy.h"
-#include "SPI.h"
 #include <OneWire.h>
 #include "src/Adafruit_GPS_Mod/Adafruit_GPS_Mega_Hardware.h"        // Modified version of Adafruit GPS library to only use hardware serial, avoids conflicts with GSM library. Created from Adafruit version downloaded 6/30/2017
 #include <GSM.h>
-
+//#include "SPI.h"
 
 // GLOBAL VARIABLES
 // ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------>>
@@ -23,7 +22,7 @@
         boolean DEBUG                           = true;             // Print debugging messages to the PC
         
         #define DisplaySerial                   Serial3             // The hardware serial port assigned to the Teensy display computer
-        #define SENTENCE_BYTES                  5                   // How many bytes in a valid sentence. Note we use 5 bytes, not the 4 you are used to seeing with the Scout or Sabertooth! 
+        #define SENTENCE_BYTES                  5                   // How many bytes in a valid sentence. 
         struct DataSentence {                                       // Serial commands should have four bytes (plus termination). 
             uint8_t    Address                  = 0;                // We use a struct for convenience
             uint8_t    Command                  = 0;
@@ -177,6 +176,11 @@
         float GPSSpeedFIR[GPS_SPEED_NTAPS];                         // Filter line for GPS speed readings (in knots)
         float GPS_Avg_Speed_Knots               = 0;                // Current average GPS speed (in knots - float)
 
+        // GPS Bearing
+        const int GPS_BEARING_NTAPS             = 10;               // How many readings to average over
+        float GPSBearingFIR[GPS_BEARING_NTAPS];                     // Filter line for GPS bearing readings 
+        float GPS_Avg_Bearing                   = 0;                // Current average bearing
+
         // GPS Coordinates
         uint8_t HeadingCode;                                        // 16 possible values (0-15) representing the points in a clockwise direction from North (N, NNE, NE, ENE, E, ESE, SE, SSE, S, etc... 
         float Current_Latitude;                                     // Present (or last known) location in degrees
@@ -303,7 +307,7 @@ void setup()
     // Load EEPROM
     // -------------------------------------------------------------------------------------------------------------------------------------------------->
         boolean did_we_init = eeprom.begin();                       // begin() will initialize EEPROM if it never has been before, and load all EEPROM settings into our ramcopy struct
-        if (did_we_init && DEBUG) { DebugSerial->println(F("EEPROM Initalized")); }    // We can use this for testing, but in general it's not needed, it doesn't happen often, and rarely would the user catch it. 
+        if (did_we_init && DEBUG) { DebugSerial->println(F("EEPROM Initalized")); }    
 
     // Sensors
     // -------------------------------------------------------------------------------------------------------------------------------------------------->        
@@ -377,8 +381,8 @@ void loop(void)
                 TurnOnDisplay();                                        // Turn on the display 
                 InitSessionMinMaxes();                                  // Clear session min/maxes
                 TurnOnGPS();                                            // Get the GPS going, this one takes a while, do it before the others
-//                StartTempReadings();                                    // Start reading temperature data and sending it to the display
-//                StartVoltageReadings();                                 // Start reading battery voltage
+                StartTempReadings();                                    // Start reading temperature data and sending it to the display
+                StartVoltageReadings();                                 // Start reading battery voltage
                 // This will start a repeating timer that will send status updates to the display whether anything has changed or not
                 // Below in the ON state we will also continuously check a Poll routine that will additionally send pertinent updates
                 // the moment any changes are detected. 
