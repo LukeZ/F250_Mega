@@ -40,8 +40,8 @@
 #define CMD_TEMP_LOST                   0x2E    // 46   Command gets sent if a sensor is lost, this lets the display not to rely on the last reading forever. Next time a temp is sent means it has been found again. 
 #define CMD_HAM_ON                      0x2F    // 47   When the Ham is on, the CB is off. The Teensy knows this, so sending one or the other command accomplishes the same thing. 
 #define CMD_CB_ON                       0x30    // 48   When the CB is on, the Ham is off. The Teensy knows this, so sending one or the other command accomplishes the same thing. 
-#define CMD_FUEL_PUMP_ON                0x31    // 49
-#define CMD_FUEL_PUMP_OFF               0x32    // 50
+#define CMD_FUEL_PUMP                   0x31    // 49   Value is on/off
+#define CMD_XXX                         0x32    // 50   UNUSED
 #define CMD_TQC_AUTO                    0x33    // 51   Torque converter lockup status controlled by Baumann controller
 #define CMD_TQC_FORCE_LOCK              0x34    // 52   Torque converter forced lock in gears 3 and 4. Good for highway or long descents to assist brakes. 
 #define CMD_TQC_FORCE_UNLOCK            0x35    // 53   Torque converted forced unlock all gears. Good for city driving. 
@@ -58,7 +58,7 @@
 #define CMD_GPS_ANGLE                   0x40    // 64   If Modifier = 0 Value holds heading up to 180, if Modifier = 1 Value holds heading - 180 (so add 180)
 #define CMD_GPS_HEADING                 0x41    // 65   Value contains a number from 0-15 representing one of the 16 cardinal directions
 #define CMD_GPS_FIX                     0x42    // 66   GPS Fix status update. Value is boolean for fix, Modifier is 0 = no fix, 1 = GPS, 2 = DGPS (very accurate)
-#define CMD_GPS_SATELLITES              0x43    // 67   Number of satellites
+#define CMD_GPS_SATELLITES              0x43    // 67   Number of satellites in value
 #define CMD_YEAR                        0x44    // 68   Value holds year after 2000
 #define CMD_MONTH_DAY                   0x45    // 69   Value holds month (1-12), Modifier holds day (0-31)
 #define CMD_HOUR_MINUTE                 0x46    // 70   Value holds hour (0-23), Modifier holds minute (0-59)

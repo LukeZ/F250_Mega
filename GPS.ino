@@ -294,6 +294,14 @@ void SendGPSInfo(void)
     // ------------------------------------------------------------------------------------------------------------------------------------->>        
         SendDisplay(CMD_GPS_FIX, GPS.fix, GPS.fixquality);          // Fix is true or false (0 or 1), Modifier holds fix quality (0 = no fix, 1 = GPS, 2 = DGPS meaning very accurate, it shows my actual bedroom on Google maps if quality = 2)
 
+    // Send Date and Time (every ten seconds or new minute) - don't need fix
+    // ------------------------------------------------------------------------------------------------
+    if (((CurrentDateTime.second - lastSecond) > 10) || (CurrentDateTime.minute != lastMinute))
+    {
+        SendDisplayDateTime(CurrentDateTime);
+        lastMinute = CurrentDateTime.minute;
+        lastSecond = CurrentDateTime.second;
+    }
 
     // Debug time if ten seconds have passed or the minute has changed
     // ------------------------------------------------------------------------------------------------------------------------------------->>        
@@ -307,14 +315,6 @@ void SendGPSInfo(void)
         // Satellites
         // ------------------------------------------------------------------------------------------------
         SendDisplay(CMD_GPS_SATELLITES, GPS.satellites);
-
-        // Date and time (every ten seconds or new minute)
-        // ------------------------------------------------------------------------------------------------
-        if (((CurrentDateTime.second - lastSecondDebug) > 10) || (CurrentDateTime.minute != lastMinute))
-        {
-            SendDisplayDateTime(CurrentDateTime);
-            lastMinute = CurrentDateTime.minute;
-        }
 
         // Speed & Max speed 
         // ------------------------------------------------------------------------------------------------

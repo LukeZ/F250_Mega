@@ -15,7 +15,7 @@ void UpdateDisplay(void)
     // Note also, this doesn't send _all_ data, but only that which isn't self updating already (things like the temp sensors & GPS etc take care of sending their own updates)
     
     Ham_On ? SendDisplay(CMD_HAM_ON) : SendDisplay(CMD_CB_ON);                              // Ham/CB microphone selector
-    FuelPump_On ? SendDisplay(CMD_FUEL_PUMP_ON) : SendDisplay(CMD_FUEL_PUMP_OFF);           // Fuel pump
+    FuelPump_On ? SendDisplay(CMD_FUEL_PUMP, true) : SendDisplay(CMD_FUEL_PUMP, false);     // Fuel pump
     switch (TorqueConverterState)                                                           // Torque converter lockup state
     {   
         case TQC_AUTO:          SendDisplay(CMD_TQC_AUTO);          break;                  // Auto

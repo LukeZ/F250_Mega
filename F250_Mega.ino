@@ -300,7 +300,7 @@ void setup()
     // -------------------------------------------------------------------------------------------------------------------------------------------------->
         Serial.begin(USB_BAUD_RATE); 
         DebugSerial = &Serial;                                      // Use Serial 0 for debugging messages
-        DisplaySerial.begin(DISPLAY_BAUD_RATE);     
+        DisplaySerial.begin(DISPLAY_BAUD_RATE);
         delay(100);
         TurnOffDisplay();                                           // Start with display off
 
@@ -435,6 +435,7 @@ void loop(void)
 // We make all this stuff its own routine so it is easy to call it from both VEHICLE_ON and temporarily also from VEHICLE_TRANSITION_OFF
 void DoVehicleOnStuff(void)
 {   
+    CheckSerial();                                              // See if the display is communicating with us
     PollInputs();                                               // Handle input polling of things we want the display to know about that changed. This is not important when the car is off. 
     // If we set the GPS to fast updates the 1 mS interrupt isn't fast enough to keep up, so we have to read here in the main loop
     if (!GPS_Interrupt_Active) { while (GPS_Serial.available()) {GPS.read();} }
@@ -476,13 +477,13 @@ void PollInputs()
     if (digitalRead(FuelPump) == DI_High && FuelPump_On == false)  
     {
         FuelPump_On = true;
-        SendDisplay(CMD_FUEL_PUMP_ON);
+        SendDisplay(CMD_FUEL_PUMP, true);
         if (DEBUG) DebugSerial->println(F("Fuel Pump turned on!!")); 
     }
     if (digitalRead(FuelPump) == DI_Low && FuelPump_On == true)
     {
         FuelPump_On = false;
-        SendDisplay(CMD_FUEL_PUMP_OFF);
+        SendDisplay(CMD_FUEL_PUMP, false);
         if (DEBUG) DebugSerial->println(F("Fuel Pump turned off")); 
     }
 

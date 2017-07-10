@@ -4,7 +4,7 @@
 // -------------------------------------------------------------------------------------------------------------------------------------------------->
 void SendDisplay(byte command, byte value, byte modifier)
 {
-    DisplaySerial.write(DISPLAY_ADDRESS);
+    DisplaySerial.write(DISPLAY_ADDRESS);       // Sending to the DISPLAY
     DisplaySerial.write(command);
     DisplaySerial.write(value);
     DisplaySerial.write(modifier);
@@ -38,7 +38,7 @@ boolean CheckSerial(void)   // THIS IS US READING COMMANDS _FROM_ THE TEENSY DIS
     while(DisplaySerial.available())               
     {
         ByteIn = DisplaySerial.read();
-        if (ByteIn == MASTER_ADDRESS)
+        if (ByteIn == MASTER_ADDRESS)       // We are the MASTER
         {
             addressReceived = true;         // Matching address
             input_line[0] = ByteIn;         // Save it in our array
