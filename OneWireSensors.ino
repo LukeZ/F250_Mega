@@ -458,7 +458,7 @@ void SendTempInfo(void)
                         if (DEBUG) { PrintTempSensorName(ts->sensorName); DebugSerial->print(F(" Temp, New All-Time Min: ")); DebugSerial->println(ts->constrained_temp); }
                     }
                 }
-                else
+                else        // NEGATIVE TEMPERATURES
                 {
                     // Send current negative temp
                     SendDisplay(CMD_TEMP_NEGATIVE, ts->constrained_temp, ts->sensorName);
@@ -467,7 +467,7 @@ void SendTempInfo(void)
                     if (ts->constrained_temp > ts->maxSessionTemp) 
                     {
                         ts->maxSessionTemp = ts->constrained_temp;
-                        SendDisplay(CMD_TEMP_MAX_NEG, ts->maxSessionTemp, ts->sensorName);
+                        SendDisplay(CMD_TEMP_MAX_NEG, -ts->maxSessionTemp, ts->sensorName); // Re-minus
                         if (DEBUG) { PrintTempSensorName(ts->sensorName); DebugSerial->print(F(" Temp, New Session Max: ")); DebugSerial->println(ts->constrained_temp); }
                     }
                     
@@ -475,7 +475,7 @@ void SendTempInfo(void)
                     if (ts->constrained_temp < ts->minSessionTemp) 
                     {
                         ts->minSessionTemp = ts->constrained_temp;
-                        SendDisplay(CMD_TEMP_MIN_NEG, ts->minSessionTemp, ts->sensorName);
+                        SendDisplay(CMD_TEMP_MIN_NEG, -ts->minSessionTemp, ts->sensorName); // Re-minus
                         if (DEBUG) { PrintTempSensorName(ts->sensorName); DebugSerial->print(F(" Temp, New Session Min: ")); DebugSerial->println(ts->constrained_temp); }
                     }
                     
@@ -500,7 +500,7 @@ void SendTempInfo(void)
                                 EEPROM.updateBlock(offsetof(_eeprom_data, SavedAuxTemp.AbsoluteMaxTimeStamp), CurrentDateTime);
                                 break; 
                         }
-                        SendDisplay(CMD_TEMP_ALLTIME_MAX_NEG, ts->constrained_temp, ts->sensorName);
+                        SendDisplay(CMD_TEMP_ALLTIME_MAX_NEG, -ts->constrained_temp, ts->sensorName);   // Re-minus
                         SendDisplayDateTime(CurrentDateTime);
                         if (DEBUG) { PrintTempSensorName(ts->sensorName); DebugSerial->print(F(" Temp, New All-Time Max: ")); DebugSerial->println(ts->constrained_temp); }
                     }
@@ -526,7 +526,7 @@ void SendTempInfo(void)
                                 EEPROM.updateBlock(offsetof(_eeprom_data, SavedAuxTemp.AbsoluteMinTimeStamp), CurrentDateTime);  
                                 break; 
                         }
-                        SendDisplay(CMD_TEMP_ALLTIME_MIN_NEG, ts->constrained_temp, ts->sensorName);
+                        SendDisplay(CMD_TEMP_ALLTIME_MIN_NEG, -ts->constrained_temp, ts->sensorName);   // Re-minus
                         SendDisplayDateTime(CurrentDateTime);
                         if (DEBUG) { PrintTempSensorName(ts->sensorName); DebugSerial->print(F(" Temp, New All-Time Min: ")); DebugSerial->println(ts->constrained_temp); }
                     }                    

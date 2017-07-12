@@ -14,16 +14,26 @@ void UpdateDisplay(void)
     // and sends data to the display whether it needs it or not. Basically it is a redundancy in case the PollInputs communication failed. 
     // Note also, this doesn't send _all_ data, but only that which isn't self updating already (things like the temp sensors & GPS etc take care of sending their own updates)
     
-    Ham_On ? SendDisplay(CMD_HAM_ON) : SendDisplay(CMD_CB_ON);                              // Ham/CB microphone selector
-    FuelPump_On ? SendDisplay(CMD_FUEL_PUMP, true) : SendDisplay(CMD_FUEL_PUMP, false);     // Fuel pump
-    switch (TorqueConverterState)                                                           // Torque converter lockup state
-    {   
-        case TQC_AUTO:          SendDisplay(CMD_TQC_AUTO);          break;                  // Auto
-        case TQC_FORCE_LOCK:    SendDisplay(CMD_TQC_FORCE_LOCK);    break;                  // Forced lock in 3rd and 4th gear
-        case TQC_FORCE_UNLOCK:  SendDisplay(CMD_TQC_FORCE_UNLOCK);  break;                  // Forced unlock
+    Ham_On ? SendDisplay(CMD_HAM_ON, true) : SendDisplay(CMD_HAM_ON, false);                        // Ham/CB microphone selector
+    FuelPump_On ? SendDisplay(CMD_FUEL_PUMP, true) : SendDisplay(CMD_FUEL_PUMP, false);             // Fuel pump
+    SendDisplay(CMD_TQC_LOCK_STATUS, TQCLockState);                                                 // Torque converter lockup state
+    OverdriveEnabled ? SendDisplay(CMD_OVERDRIVE, true) : SendDisplay(CMD_OVERDRIVE, false);        // Overdrive enabled
+    AlternateTransSetting ? SendDisplay(CMD_TRANS_TABLE, 2) : SendDisplay(CMD_TRANS_TABLE, 1);      // Baumann Table 2 (alternate transmission configuration settings - negative signal means Table 2 active)
+    Low_Air_Warning ? SendDisplay(CMD_LOW_AIR_WARN, true) : SendDisplay(CMD_LOW_AIR_WARN, false);   // Low air tank warning
+
+    // Yeah ok, temp sensors are good at sending current temp regularly, but not min/maxes
+    _tempsensor *ts; 
+    for (uint8_t i=0; i<NUM_TEMP_SENSORS; i++)
+    {
+        if (i == 0) { ts = &InternalTemp; }
+        if (i == 1) { ts = &ExternalTemp; }
+        if (i == 2) { ts = &AuxTemp;      }
+        if (ts->maxSessionTemp > 0) SendDisplay(CMD_TEMP_MAX_POS, ts->maxSessionTemp, ts->sensorName);
+        if (ts->maxSessionTemp < 0) SendDisplay(CMD_TEMP_MAX_NEG, -ts->maxSessionTemp, ts->sensorName); // Re-minus
+        if (ts->minSessionTemp > 0) SendDisplay(CMD_TEMP_MIN_POS, ts->minSessionTemp, ts->sensorName);
+        if (ts->minSessionTemp < 0) SendDisplay(CMD_TEMP_MIN_NEG, -ts->minSessionTemp, ts->sensorName); // Re-minus
+        if (ts->sensorLost)         SendDisplay(CMD_TEMP_LOST, ts->sensorName);                         // Every now and then, remind it if a sensor is not present
     }
-    OverdriveEnabled ? SendDisplay(CMD_OVERDRIVE_ON) : SendDisplay(CMD_OVERDRIVE_OFF);      // Overdrive enabled
-    AlternateTransSetting ? SendDisplay(CMD_TRANS_TABLE2) : SendDisplay(CMD_TRANS_TABLE1);  // Baumann Table 2 (alternate transmission configuration settings - negative signal means Table 2 active)
-    Low_Air_Warning ? SendDisplay(CMD_LOW_AIR_WARN) : SendDisplay(CMD_AIR_RESTORED);        // Low air tank warning (negative signal is the warning)
+    
 }
 

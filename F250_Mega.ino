@@ -64,7 +64,7 @@
         #define TQC_FORCE_LOCK                  1
         #define TQC_FORCE_UNLOCK                2
         #define TQC_UNKNOWN                     3                    // Not really used other than to force a message on startup
-        _TQC_STATE TorqueConverterState         = TQC_UNKNOWN;
+        _TQC_STATE TQCLockState                 = TQC_UNKNOWN;
         
         // Input board 2 - positive input signals
         #define FuelPump                        22
@@ -462,13 +462,13 @@ void PollInputs()
     if (digitalRead(CB_Select) == DI_High && Ham_On == true)
     {
         Ham_On = false;
-        SendDisplay(CMD_CB_ON);
+        SendDisplay(CMD_HAM_ON, false);
         if (DEBUG) DebugSerial->println(F("CB microphone selected"));
     }
     if (digitalRead(CB_Select) == DI_Low && Ham_On == false)
     {
         Ham_On = true;
-        SendDisplay(CMD_HAM_ON);
+        SendDisplay(CMD_HAM_ON, true);
         if (DEBUG) DebugSerial->println(F("Ham microphone selected"));
     }
 
@@ -490,15 +490,15 @@ void PollInputs()
     // Torque converter lockup state
     // -------------------------------------------------------------------------------------------------------------------------------------------------->        
     _TQC_STATE tqc = GetTorqueConverterState();
-    if (tqc != TorqueConverterState)
+    if (tqc != TQCLockState)
     {
-        TorqueConverterState = tqc;
+        TQCLockState = tqc;
         if (DEBUG) DebugSerial->print(F("Torque converter locked mode: "));
-        switch (tqc)
+        switch (TQCLockState)
         {
-            case TQC_AUTO:          SendDisplay(CMD_TQC_AUTO);          if (DEBUG) { DebugSerial->println(F("Auto"));          } break;
-            case TQC_FORCE_LOCK:    SendDisplay(CMD_TQC_FORCE_LOCK);    if (DEBUG) { DebugSerial->println(F("Force Locked"));  } break;
-            case TQC_FORCE_UNLOCK:  SendDisplay(CMD_TQC_FORCE_UNLOCK);  if (DEBUG) { DebugSerial->println(F("Force Unlocked"));} break;
+            case TQC_AUTO:          SendDisplay(CMD_TQC_LOCK_STATUS, TQCLockState); if (DEBUG) { DebugSerial->println(F("Auto"));          } break;
+            case TQC_FORCE_LOCK:    SendDisplay(CMD_TQC_LOCK_STATUS, TQCLockState); if (DEBUG) { DebugSerial->println(F("Force Locked"));  } break;
+            case TQC_FORCE_UNLOCK:  SendDisplay(CMD_TQC_LOCK_STATUS, TQCLockState); if (DEBUG) { DebugSerial->println(F("Force Unlocked"));} break;
         }
     }
 
@@ -507,13 +507,13 @@ void PollInputs()
     if (digitalRead(Overdrive_Off) == DI_High && OverdriveEnabled == true)  
     {
         OverdriveEnabled = false;
-        SendDisplay(CMD_OVERDRIVE_OFF);
+        SendDisplay(CMD_OVERDRIVE, false);
         if (DEBUG) DebugSerial->println(F("Overdrive disabled")); 
     }
     if (digitalRead(Overdrive_Off) == DI_Low && OverdriveEnabled == false)
     {
         OverdriveEnabled = true;
-        SendDisplay(CMD_OVERDRIVE_ON);
+        SendDisplay(CMD_OVERDRIVE, true);
         if (DEBUG) DebugSerial->println(F("Overdrive enabled")); 
     }    
 
@@ -522,13 +522,13 @@ void PollInputs()
     if (digitalRead(BaumannTable2) == DI_Low && AlternateTransSetting == false)  
     {
         AlternateTransSetting = true;
-        SendDisplay(CMD_TRANS_TABLE2);
+        SendDisplay(CMD_TRANS_TABLE, 2);
         if (DEBUG) DebugSerial->println(F("Baumann Table 2 selected")); 
     }
     if (digitalRead(BaumannTable2) == DI_High && AlternateTransSetting == true)
     {
         AlternateTransSetting = false;
-        SendDisplay(CMD_TRANS_TABLE1);
+        SendDisplay(CMD_TRANS_TABLE, 1);
         if (DEBUG) DebugSerial->println(F("Baumann Default (Table 1) settings selected")); 
     }   
     
@@ -537,13 +537,13 @@ void PollInputs()
     if (digitalRead(Low_Air) == DI_Low && Low_Air_Warning == false)  
     {
         Low_Air_Warning = true;
-        SendDisplay(CMD_LOW_AIR_WARN);
+        SendDisplay(CMD_LOW_AIR_WARN, true);
         if (DEBUG) DebugSerial->println(F("Low air warning!")); 
     }
     if (digitalRead(Low_Air) == DI_High && Low_Air_Warning == true)
     {
         Low_Air_Warning = false;
-        SendDisplay(CMD_AIR_RESTORED);
+        SendDisplay(CMD_LOW_AIR_WARN, false);
         if (DEBUG) DebugSerial->println(F("Air pressure restored")); 
     }   
 

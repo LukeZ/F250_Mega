@@ -37,20 +37,20 @@
 #define CMD_TEMP_ALLTIME_MIN_NEG        0x2B    // 43   All time minum temp (positive). Value = temp, Modifier = sensor num.
 #define CMD_TEMP_ALLTIME_MAX_POS        0x2C    // 44   All time maximum temp (positive). Value = temp, Modifier = sensor num.
 #define CMD_TEMP_ALLTIME_MAX_NEG        0x2D    // 45   All time maximum temp (negative - highly unlikely). Value = temp, Modifier = sensor num.
-#define CMD_TEMP_LOST                   0x2E    // 46   Command gets sent if a sensor is lost, this lets the display not to rely on the last reading forever. Next time a temp is sent means it has been found again. 
-#define CMD_HAM_ON                      0x2F    // 47   When the Ham is on, the CB is off. The Teensy knows this, so sending one or the other command accomplishes the same thing. 
-#define CMD_CB_ON                       0x30    // 48   When the CB is on, the Ham is off. The Teensy knows this, so sending one or the other command accomplishes the same thing. 
+#define CMD_TEMP_LOST                   0x2E    // 46   Command gets sent if a sensor is lost or not present, this lets the display not to rely on the last reading forever. Next time a temp is sent means it has been found again. 
+#define CMD_HAM_ON                      0x2F    // 47   When the Ham is on (value = 1), the CB is off, and vice versa (value = 0)
+#define CMD_XXX                         0x30    // 48   UNUSED
 #define CMD_FUEL_PUMP                   0x31    // 49   Value is on/off
-#define CMD_XXX                         0x32    // 50   UNUSED
-#define CMD_TQC_AUTO                    0x33    // 51   Torque converter lockup status controlled by Baumann controller
-#define CMD_TQC_FORCE_LOCK              0x34    // 52   Torque converter forced lock in gears 3 and 4. Good for highway or long descents to assist brakes. 
-#define CMD_TQC_FORCE_UNLOCK            0x35    // 53   Torque converted forced unlock all gears. Good for city driving. 
-#define CMD_OVERDRIVE_ON                0x36    // 54   Overdrive is enabled
-#define CMD_OVERDRIVE_OFF               0x37    // 55   Overdrive is disabled
-#define CMD_LOW_AIR_WARN                0x38    // 56   Low air warning (suspension air tank)
-#define CMD_AIR_RESTORED                0x39    // 57   Air pressure restored (suspension air tank)
-#define CMD_TRANS_TABLE2                0x3A    // 58   Baumann using Table 2 transmission settings
-#define CMD_TRANS_TABLE1                0x3B    // 59   Baumann using Table 1 (default) transmission settings
+#define CMD_YYY                         0x32    // 50   UNUSED
+#define CMD_TQC_LOCK_STATUS             0x33    // 51   Torque converter lockup status controlled by Baumann controller. Value 0 = Auto, 1 = Force Lock, 2 = Force Unlock
+#define CMD_AAA                         0x34    // 52   UNUSED
+#define CMD_BBB                         0x35    // 53   UNUSED
+#define CMD_OVERDRIVE                   0x36    // 54   Overdrive. Value = true if enabled, false if disabled
+#define CCC                             0x37    // 55   UNUSED
+#define CMD_LOW_AIR_WARN                0x38    // 56   Low air warning (suspension air tank). Value = 1 if Low, 0 = if OK
+#define CMD_ZZZ                         0x39    // 57   UNUSED
+#define CMD_TRANS_TABLE                 0x3A    // 58   Baumann settings - value = 1 default, 2 = Table 2
+#define DDD                             0x3B    // 59   UNUSED
 #define CMD_VOLTAGE                     0x3C    // 60   Send voltage multiplied by 10 (divide by 10 on opposite end)
 #define CMD_GPS_ALTITUDE_POS            0x3D    // 61   Altitude in feet, positive numbers. Value = alt divided by 100, modifier = remainder of feet less than 100 (add to val*100)
 #define CMD_GPS_ALTITUDE_NEG            0x3E    // 62   Altitude in feet, negative numbers, in case I go to Death Valley. 

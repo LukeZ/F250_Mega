@@ -344,8 +344,8 @@ void SendGPSInfo(void)
         int16_t iAlt = (int16_t)(abs(MetersToFeet(GPS_Altitude_Meters)) + 0.5);      // Convert to rounded absolute integer in feet
         uint8_t Alt_Tens = iAlt % 100;                                      // Number of feet under 100
         uint8_t Alt_Hundreds = iAlt / 100;                                  // Number of feet over 100, divided by 100
-        if (GPS_Altitude_Meters < 0) SendDisplay(CMD_GPS_ALTITUDE_POS, Alt_Hundreds, Alt_Tens); 
-        else                         SendDisplay(CMD_GPS_ALTITUDE_NEG, Alt_Hundreds, Alt_Tens); 
+        if (GPS_Altitude_Meters < 0) SendDisplay(CMD_GPS_ALTITUDE_NEG, Alt_Hundreds, Alt_Tens); 
+        else                         SendDisplay(CMD_GPS_ALTITUDE_POS, Alt_Hundreds, Alt_Tens); 
         // Test putting the number back together - yes, it works
         // if (DEBUG) { Serial.print(F("Altitude (feet): ")); Serial.println((Alt_Hundreds * 100) + Alt_Tens); }
 
