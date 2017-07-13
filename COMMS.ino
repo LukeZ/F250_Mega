@@ -89,11 +89,13 @@ void ProcessCommand(DataSentence * sentence)
     switch (sentence->Command)
     {
         case RCV_CMD_SET_HOME_COORD:
-            // Save current coordinates as Home, if we have a fix
+            // Save current coordinates as Home, if we have a fix. The display should only know to try this if we have a fix. 
             if (GPS.fix)
-            {
+            {   
                 EEPROM.updateFloat(offsetof(_eeprom_data, Lat_Home), Current_Latitude);
                 EEPROM.updateFloat(offsetof(_eeprom_data, Lon_Home), Current_Longitude);
+                SendDisplay(CMD_ACTION_TAKEN);
+                if (DEBUG) DebugSerial->println(F("Home coordinates set")); 
             }
             break;
 
@@ -102,18 +104,45 @@ void ProcessCommand(DataSentence * sentence)
             {
                 uint16_t alt = (sentence->Value * 100) + sentence->Modifier;    
                 EEPROM.updateInt(offsetof(_eeprom_data, Alt_Home), alt);
+                SendDisplay(CMD_ACTION_TAKEN);
+                if (DEBUG) { DebugSerial->print(F("Home altitude set to: ")); DebugSerial->println(alt); }
+            }
+            break;
+
+        case RCV_CMD_SET_GPS_ALT:
+            // Set current altitude adjustment based on current GPS altitude - ie, we assume (or know) the GPS is correct
+            {
+                // Ok, do this when you have the code ready. 
+                SendDisplay(CMD_ACTION_TAKEN);
+                if (DEBUG) { DebugSerial->print(F("Altitude correction set based on current GPS altitude: ")); DebugSerial->println(GPS_Altitude_Feet); }
             }
             break;
 
         case RCV_CMD_SET_CURRENT_ALT:
             // We are being given a current altitude, but what we actually save in EEPROM is an adjustment
             {
-                uint16_t alt = (sentence->Value * 100) + sentence->Modifier;    // Altitude given
+                int16_t alt = (sentence->Value * 100) + sentence->Modifier;    // Altitude given
+                SendDisplay(CMD_ACTION_TAKEN);
+                if (DEBUG) { DebugSerial->print(F("Altitude correction set based on manual altitude entry: ")); DebugSerial->println(alt); }
             }
             break; 
         
         case RCV_CMD_SET_TIMEZONE:
-            EEPROM.updateByte(offsetof(_eeprom_data, Timezone), sentence->Value);        
+            EEPROM.updateByte(offsetof(_eeprom_data, Timezone), sentence->Value);
+            SendDisplay(CMD_ACTION_TAKEN);  
+            if (DEBUG) 
+            { 
+                DebugSerial->print(F("Current timezone set to: ")); 
+                switch (sentence->Value)
+                {
+                    case AKST:  DebugSerial->println(F("AKST (Alaska)"));   break;  // Alaska timezone - it may use different dates for DST if it even observes it, I don't know. 
+                    case PST:   DebugSerial->println(F("PST (Pacific)"));   break;  // Pacific standard time
+                    case MST:   DebugSerial->println(F("MST (Mountain)"));  break;  // Mountain standard time
+                    case CST:   DebugSerial->println(F("CST (Central)"));   break;  // Central standard time
+                    case EST:   DebugSerial->println(F("EST (Eastern)"));   break;  // Eastern standard time
+                    default:    DebugSerial->println(F("Unknown"));         break;
+                }
+            }
             break;
 
         case RCV_CMD_RESET_ABS_TEMP:
@@ -126,18 +155,24 @@ void ProcessCommand(DataSentence * sentence)
                     EEPROM.updateBlock(offsetof(_eeprom_data, SavedInternalTemp.AbsoluteMaxTimeStamp), CurrentDateTime);
                     EEPROM.updateInt(offsetof(_eeprom_data, SavedInternalTemp.AbsoluteMin), InternalTemp.constrained_temp);
                     EEPROM.updateBlock(offsetof(_eeprom_data, SavedInternalTemp.AbsoluteMinTimeStamp), CurrentDateTime);
+                    SendDisplay(CMD_ACTION_TAKEN);
+                    if (DEBUG) DebugSerial->println(F("All-Time absolute temps re-set for Internal sensor")); 
                     break;
                 case 1: // External sensor
                     EEPROM.updateInt(offsetof(_eeprom_data, SavedExternalTemp.AbsoluteMax), ExternalTemp.constrained_temp);
                     EEPROM.updateBlock(offsetof(_eeprom_data, SavedExternalTemp.AbsoluteMaxTimeStamp), CurrentDateTime);
                     EEPROM.updateInt(offsetof(_eeprom_data, SavedExternalTemp.AbsoluteMin), ExternalTemp.constrained_temp);
                     EEPROM.updateBlock(offsetof(_eeprom_data, SavedExternalTemp.AbsoluteMinTimeStamp), CurrentDateTime);
+                    SendDisplay(CMD_ACTION_TAKEN);
+                    if (DEBUG) DebugSerial->println(F("All-Time absolute temps re-set for External sensor")); 
                     break;
                 case 2: // Aux sensor
                     EEPROM.updateInt(offsetof(_eeprom_data, SavedAuxTemp.AbsoluteMax), AuxTemp.constrained_temp);
                     EEPROM.updateBlock(offsetof(_eeprom_data, SavedAuxTemp.AbsoluteMaxTimeStamp), CurrentDateTime);
                     EEPROM.updateInt(offsetof(_eeprom_data, SavedAuxTemp.AbsoluteMin), AuxTemp.constrained_temp);
                     EEPROM.updateBlock(offsetof(_eeprom_data, SavedAuxTemp.AbsoluteMinTimeStamp), CurrentDateTime);
+                    SendDisplay(CMD_ACTION_TAKEN);
+                    if (DEBUG) DebugSerial->println(F("All-Time absolute temps re-set for Aux sensor")); 
                     break;                    
             }
             break;

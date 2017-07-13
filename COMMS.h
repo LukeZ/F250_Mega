@@ -9,13 +9,14 @@
 #define CMD_DISPLAY_TURN_OFF            0x0E    // 14
 #define CMD_DISPLAY_TURN_ON             0x0F    // 15
 
+// "Receive" is from the perspective of the Mega, receiving data from the display, which is the a-typical case
 #define RCV_CMD_SET_HOME_COORD          0x10    // 16   If GPS fix obtained, set current coordinates to home
 #define RCV_CMD_SET_HOME_ALT            0x11    // 17   Set home altitude to value * 100 + modifier (tens)
 #define RCV_CMD_SET_CURRENT_ALT         0x12    // 18   Set current altitude adjustment using this altitude (value * 100) + modifier (tens)
-#define RCV_CMD_SET_TIMEZONE            0x13    // 19   AKST, PST, MST, CST, EST passed in value
-#define RCV_CMD_RESET_ABS_TEMP          0x14    // 20   Will reset the absolute (all-time) min max temperature settings for sensor passed in modifier (basically sets them to temp right now)
+#define RCV_CMD_SET_GPS_ALT             0x13    // 19   Set current altitude adjustment based on current GPS altitude - ie, we assume (or know) the GPS is correct
+#define RCV_CMD_SET_TIMEZONE            0x14    // 20   AKST, PST, MST, CST, EST passed in value
+#define RCV_CMD_RESET_ABS_TEMP          0x15    // 21   Will reset the absolute (all-time) min max temperature settings for sensor passed in modifier (basically sets them to temp right now)
 /*
-0x15    // 21
 0x16    // 22
 0x17    // 23
 0x18    // 24
@@ -62,7 +63,7 @@
 #define CMD_YEAR                        0x44    // 68   Value holds year after 2000
 #define CMD_MONTH_DAY                   0x45    // 69   Value holds month (1-12), Modifier holds day (0-31)
 #define CMD_HOUR_MINUTE                 0x46    // 70   Value holds hour (0-23), Modifier holds minute (0-59)
-// 0x47    // 71   
+#define CMD_ACTION_TAKEN                0x47    // 71   Return letter to the display when it asks us to do something, letting it know we actually did. 
 // 0x48    // 72   
 // 0x49    // 73
 // 0x4A    // 74

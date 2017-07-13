@@ -188,6 +188,7 @@
 
         // GPS Altitude
         float GPS_Altitude_Meters;                                  // Current altitude in meters
+        int16_t GPS_Altitude_Feet;                                  // Current GPS altitude rounded to nearest foot
 
         // GPS -> Display
         #define GPS_SEND_FREQ                   500                 // How often to send GPS data to the screen in mS. GPS updates at 5hz, we send to the display at 2hz (every 1/2 second)
