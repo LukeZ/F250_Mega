@@ -60,7 +60,7 @@
 #define CMD_GPS_HEADING                 0x41    // 65   Value contains a number from 0-15 representing one of the 16 cardinal directions
 #define CMD_GPS_FIX                     0x42    // 66   GPS Fix status update. Value is boolean for fix, Modifier is 0 = no fix, 1 = GPS, 2 = DGPS (very accurate)
 #define CMD_GPS_SATELLITES              0x43    // 67   Number of satellites in value
-#define CMD_YEAR                        0x44    // 68   Value holds year after 2000
+#define CMD_YEAR                        0x44    // 68   Value holds year after 2000, Modifier holds timezone
 #define CMD_MONTH_DAY                   0x45    // 69   Value holds month (1-12), Modifier holds day (0-31)
 #define CMD_HOUR_MINUTE                 0x46    // 70   Value holds hour (0-23), Modifier holds minute (0-59)
 #define CMD_ACTION_TAKEN                0x47    // 71   Return letter to the display when it asks us to do something, letting it know we actually did. 

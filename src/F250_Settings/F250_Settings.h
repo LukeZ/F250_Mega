@@ -26,6 +26,7 @@
     #define MST                             2                   // Mountain standard time
     #define CST                             3                   // Central standard time
     #define EST                             4                   // Eastern standard time
+    #define NUM_TIMEZONES                   5
 
 // ------------------------------------------------------------------------------------------------------------------------------------------------------->>
 // TIME STRUCT
@@ -38,6 +39,7 @@
         int16_t year;           // 2 digit year only
         int16_t month;
         int16_t day;
+        uint8_t timezone;       // Timezone of this date
     };
 
 // ------------------------------------------------------------------------------------------------------------------------------------------------------->>

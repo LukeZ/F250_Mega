@@ -305,7 +305,7 @@ void SendGPSInfo(void)
 
     // Debug time if ten seconds have passed or the minute has changed
     // ------------------------------------------------------------------------------------------------------------------------------------->>        
-    if (DEBUG && ((CurrentDateTime.second - lastSecondDebug) > 10) || (CurrentDateTime.minute != lastMinuteDebug)) { DebugPrintDateTime(CurrentDateTime); DebugSerial->print(F("  ")); DebugPrintGPSDateTime(); DebugSerial->println(); lastSecondDebug = CurrentDateTime.second; lastMinuteDebug = CurrentDateTime.minute; } 
+    if (DEBUG && (((CurrentDateTime.second - lastSecondDebug) > 10) || (CurrentDateTime.minute != lastMinuteDebug))) { DebugPrintDateTime(CurrentDateTime); DebugSerial->print(F("  ")); DebugPrintGPSDateTime(); DebugSerial->println(); lastSecondDebug = CurrentDateTime.second; lastMinuteDebug = CurrentDateTime.minute; } 
 
 
     // Stuff we send only with Fix
@@ -487,6 +487,7 @@ void CopyDateTime(_datetime FromDT, _datetime *ToDT)
     ToDT->year = FromDT.year;
     ToDT->month = FromDT.month;
     ToDT->day = FromDT.day;
+    ToDT->timezone = FromDT.timezone;
 }
 
 _datetime getBlankDateTime()
@@ -496,6 +497,7 @@ _datetime getBlankDateTime()
     dt.month = 1;
     dt.day = 1;
     dt.hour = dt.minute = dt.second = 0;
+    dt.timezone = 0;
     return dt;
 }
 
@@ -523,6 +525,7 @@ void AdjustGPSDateTime()
     dt.year = GPS.year;       // 2-digit
     dt.month = GPS.month;
     dt.day = GPS.day;
+    dt.timezone = eeprom.ramcopy.Timezone;
 
     // In addition to being technically correct, we only accept readings that are not very different from the prior reading. 
     // We're getting time data 5 times a second so if we are off by some large amount the reading is a glitch and we don't want it. 
@@ -589,7 +592,7 @@ void AdjustGPSDateTime()
     }
           
     //Time zone adjustment
-    dt.hour += UTC_Offset[eeprom.ramcopy.Timezone];  // Timezone is AKST, PST, MST, CST, EST, and the array holds the UTC offsets for each one
+    dt.hour += UTC_Offset[dt.timezone];  // Timezone is AKST, PST, MST, CST, EST, and the array holds the UTC offsets for each one
 
     //DST adjustment
     if (dt.month * 100 + dt.day >= DSTbegin[dt.year - 13] && dt.month * 100 + dt.day < DSTend[dt.year - 13]) dt.hour += 1;
@@ -711,9 +714,9 @@ void DebugPrintGPSDateTime()
 
 void SendDisplayDateTime(_datetime dt)
 {
-    SendDisplay(CMD_YEAR, dt.year);                       // Value holds year after 2000
-    SendDisplay(CMD_MONTH_DAY, dt.month, dt.day);         // Value holds month (1-12), Modifier holds day (0-31)
-    SendDisplay(CMD_HOUR_MINUTE, dt.hour, dt.minute);     // Value holds hour (0-23), Modifier holds minute (0-59)
+    SendDisplay(CMD_YEAR, dt.year, dt.timezone);        // Value holds year after 2000, Modifier holds timezone
+    SendDisplay(CMD_MONTH_DAY, dt.month, dt.day);       // Value holds month (1-12), Modifier holds day (0-31)
+    SendDisplay(CMD_HOUR_MINUTE, dt.hour, dt.minute);   // Value holds hour (0-23), Modifier holds minute (0-59)
 }                       
 
 void TestDistCalcs(void)

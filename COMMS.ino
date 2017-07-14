@@ -128,7 +128,10 @@ void ProcessCommand(DataSentence * sentence)
             break; 
         
         case RCV_CMD_SET_TIMEZONE:
-            EEPROM.updateByte(offsetof(_eeprom_data, Timezone), sentence->Value);
+            // Update timezone
+            CurrentDateTime.timezone = sentence->Value;                             // Ram copy, we have two of them
+            eeprom.ramcopy.Timezone = sentence->Value;                              // We don't actually probably use this one
+            EEPROM.updateByte(offsetof(_eeprom_data, Timezone), sentence->Value);   // EEPROM copy. We do save this here, we don't save an entire date struct
             SendDisplay(CMD_ACTION_TAKEN);  
             if (DEBUG) 
             { 

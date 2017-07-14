@@ -362,7 +362,7 @@ float celsius, fahrenheit;
         // DebugSerial->print(fahrenheit,1);      // Precise version
         DebugSerial->println(F("* F")); 
     }
-    */
+    */    
     // Go back to the handler
     TempHandler();
 }

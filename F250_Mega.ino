@@ -5,10 +5,10 @@
 #include "src/EEPROMex/EEPROMex.h"  
 #include "src/F250_SimpleTimer/F250_SimpleTimer.h"
 #include "src/Sleepy/Sleepy.h"
+#include "src/Adafruit-BMP085/Adafruit_BMP085.h"
 #include <OneWire.h>
 #include "src/Adafruit_GPS_Mod/Adafruit_GPS_Mega_Hardware.h"        // Modified version of Adafruit GPS library to only use hardware serial, avoids conflicts with GSM library. Created from Adafruit version downloaded 6/30/2017
 #include <GSM.h>
-//#include "SPI.h"
 
 // GLOBAL VARIABLES
 // ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------>>
@@ -118,12 +118,6 @@
         uint32_t TimeAuxRearLightsChanged       = 0;                // Save the time when we change the state of the aux rear lights. We will use it to debounce the input
         #define AuxRearLightsDebounceTime       500                 // After a change, ignore any other signals for this length of time
      
-    // I2C - Used for Pressure Sensor
-    //--------------------------------------------------------------------------------------------------------------------------------------------------->>
-        #define I2C_SDA                         20
-        #define I2C_SCL                         21
-
-
     // GPS BOARD SPECIFIC
     //--------------------------------------------------------------------------------------------------------------------------------------------------->>
         // Most GPS code taken from the "parsing" example in the Adafruit Ultimate GPS code base. 
@@ -238,14 +232,14 @@
         int TimerID_TempSensorCheck             = 0;                // Timer that polls the bus to detect attached temperature sensors
         int TimerID_TempSender                  = 0;                // Timer that sends the readings to the display on some schedule
         boolean TempHandlerEnabled = false;                         // The handler cycles through the various detected sensors and reads them over and over (when enabled)
-  
+ 
 
     // VOLTAGE SENSOR
     //--------------------------------------------------------------------------------------------------------------------------------------------------->>
         // Take a measurement once per second, average over the last 10 measurements (10 seconds). Send update to screen every 3 seconds. 
         #define VOLTAGE_CHECK_FREQ              1000                // How often to take voltage measurement
         #define VOLTAGE_SEND_FREQ               3000                // How often to send voltage measurement to the screen in mS        
-        int TimerID_VoltageSensorCheck          = 0;                // Timer that polls the bus to detect attached temperature sensors
+        int TimerID_VoltageSensorCheck          = 0;                // Timer that updates the voltage reading and averages it
         int TimerID_VoltageSender               = 0;                // Timer that sends the readings to the display on some schedule
         const int VOLTAGE_NTAPS                 = 10;               // Number of elements in the FIR filter for voltage readings.
         float BattVoltageFIR[VOLTAGE_NTAPS];                        // Filter line for voltage readings
@@ -262,6 +256,32 @@
         #define PINNUMBER                       ""                  // This is not the physical pin, this is the PIN account number for your SIM card
 
         GSM gsm;                                                    // include a 'true' parameter for debug enabled        
+
+
+    // BMP180 (BMP085 compatible) BAROMETRIC PRESSURE SENSOR & BAROMETRIC ALTITUDE 
+    //--------------------------------------------------------------------------------------------------------------------------------------------------->>
+        Adafruit_BMP085 bmp;                                        // BMP180 sensor
+
+        #define Troposphere                     0                   // We use this to specify which altitude formula to use
+        #define Tropopause                      1                   // 
+        unsigned char Region = Troposphere;                         // Atmospheric region we're currently in - can also be Tropopause (defined below)
+        float p1_Tsphere = 101.325;                                 // Pressure at sea level in kPa, adjusted with CorrectP1 routine. Initialized here to standard-day value
+        float p1_Tpause = 22.631;                                   // Pressure at beginning of tropopause, adjusted with CorrectP1 routine. Initialized here to standard-day value
+        const float T1 = 288.15;                                    // Temperature at base of troposphere (Kelvin)
+        const float a = -0.0065;                                    // Slope of temperature gradient in 0-11 km region (Troposphere) - Degrees Kelvin / meter
+        const float g = 9.80665;                                    // Acceleration due to gravity meters / second squared
+        const float R = 287.05;                                     // Ideal gas constant Joules / kilogram-kelvins
+
+        #define PRESSURE_ALT_CHECK_FREQ         500                 // How often to take pressure measurement. We do it rather often since we have a long filter line
+        #define PRESSURE_ALT_SEND_FREQ          2000                // How often to send pressure altitude to the screen in mS        
+        int TimerID_PressureAltitudeCheck       = 0;                // Timer that updates the average pressure sensor reading and converts to altitude
+        int TimerID_PressureAltitudeSender      = 0;                // Timer that sends the readings to the display on some schedule
+        const int PA_NTAPS                      = 20;               // How many readings to average pressure over
+        float PA_line[PA_NTAPS];                                    // Filter line for Altitude
+        float Pressure                          = 101.325;          // Current static preasure measurement, in kPa. Initializedto standard-day sea level value. 
+
+        float Pressure_Altitude_Meters;                             // Current pressure altitude in meters
+        int16_t Pressure_Altitude_Feet;                             // Current pressure altitude in feet
 
 
     // APPLICATION STATE MACHINE
@@ -309,12 +329,14 @@ void setup()
     // -------------------------------------------------------------------------------------------------------------------------------------------------->
         boolean did_we_init = eeprom.begin();                       // begin() will initialize EEPROM if it never has been before, and load all EEPROM settings into our ramcopy struct
         if (did_we_init && DEBUG) { DebugSerial->println(F("EEPROM Initalized")); }    
+        CurrentDateTime.timezone = eeprom.ramcopy.Timezone;         // It's convenient to have Timezone in EEPROM but from here on out we'd like to refer to it using our date struct
 
     // Sensors
     // -------------------------------------------------------------------------------------------------------------------------------------------------->        
         InitTempStructs();                                          // Start by initializing our RAM structs
         SetupVoltageSensor();                                       // Initialize the voltage sensor
         TurnOffGPS();                                               // Keep the GPS off an startup until we know if the car is on or not. 
+        InitAltimeter();
 }
 
 void loop(void) 
@@ -384,6 +406,7 @@ void loop(void)
                 TurnOnGPS();                                            // Get the GPS going, this one takes a while, do it before the others
                 StartTempReadings();                                    // Start reading temperature data and sending it to the display
                 StartVoltageReadings();                                 // Start reading battery voltage
+                StartPressureReadings();                                // Start reading the barometric pressure sensor
                 // This will start a repeating timer that will send status updates to the display whether anything has changed or not
                 // Below in the ON state we will also continuously check a Poll routine that will additionally send pertinent updates
                 // the moment any changes are detected. 
@@ -425,6 +448,7 @@ void loop(void)
                 TurnOffDisplay();                                       // Tell the display to turn off
                 PauseTempReadings();                                    // Stop taking temperature readings or sending them to the display
                 PauseVoltageReadings();                                 // Stop taking battery voltage readings
+                PausePressureReadings();                                // Stop taking barometric pressure readings
                 TurnOffGPS();                                           // Shutdown the GPS
                 TurnOffCellPhone();                                     // And the cell phone
                 if (TimerID_DisplayUpdate > 0) timer.disable(TimerID_DisplayUpdate);    // Pause sending display updates
