@@ -120,7 +120,15 @@ void F250_EEPROM::Initialize_RAMcopy(void)
 
     
     // Altitude stuff
-        // Current adjustment, based on an altitude received from the display
+        ramcopy.p1_Adjust = 0.0;                                    // Initialize to no adjustment
+        ramcopy.lastAltitudeAdjust.month = 1;                       // Initialize date to long ago
+        ramcopy.lastAltitudeAdjust.day = 1;
+        ramcopy.lastAltitudeAdjust.year = 0;
+        ramcopy.lastAltitudeAdjust.hour = 0;
+        ramcopy.lastAltitudeAdjust.minute = 0;
+        ramcopy.lastAltitudeAdjust.second = 0;
+        ramcopy.lastAltitudeAdjust.timezone = 3;
+        
         
     // GPS Stuff
     // Recall N and E are positive, S and W are negative
@@ -128,7 +136,7 @@ void F250_EEPROM::Initialize_RAMcopy(void)
         // Use the "degrees" version of Adafruit's lat/long
         ramcopy.Lat_Home = 37.7060;     // North 
         ramcopy.Lon_Home = -97.4643;    // West
-        ramcopy.Alt_Home = 409;         // Altitude in meters - Huntington Park Apartments, Wichita
+        ramcopy.Alt_Home = 409;         // Altitude in METERS - Huntington Park Apartments, Wichita (1,342 feet)
        
 }
 

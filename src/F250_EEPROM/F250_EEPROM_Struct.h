@@ -25,12 +25,13 @@ struct _eeprom_data
     _saved_tempdata SavedAuxTemp;
 
 // Altitude stuff
-    // Current adjustment, based on an altitude received from the display
+    float p1_Adjust;                    // Current p1 adjustment. Add to default p1 to get corrected p1
+    _datetime lastAltitudeAdjust;       // When was the last adjustment made. 
 
 // GPS stuff
-    float Lat_Home;     // Coordinates of home location
+    float Lat_Home;                     // Coordinates of home location
     float Lon_Home;
-    int16_t Alt_Home;   // Home altitude, will use to adjust barometric pressure on startup
+    int16_t Alt_Home;                   // Home altitude in METERS, will use to adjust barometric pressure on startup
 
 
 

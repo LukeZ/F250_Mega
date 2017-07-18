@@ -99,34 +99,37 @@ void ProcessCommand(DataSentence * sentence)
             }
             break;
 
-        case RCV_CMD_SET_HOME_ALT:
-            // Save home altitude to EEPROM
-            {
-                uint16_t alt = (sentence->Value * 100) + sentence->Modifier;    
-                EEPROM.updateInt(offsetof(_eeprom_data, Alt_Home), alt);
-                SendDisplay(CMD_ACTION_TAKEN);
-                if (DEBUG) { DebugSerial->print(F("Home altitude set to: ")); DebugSerial->println(alt); }
-            }
-            break;
-
         case RCV_CMD_SET_GPS_ALT:
             // Set current altitude adjustment based on current GPS altitude - ie, we assume (or know) the GPS is correct
-            {
-                // Ok, do this when you have the code ready. 
+            if (GPS_Fixed)  // No point in doing this if we don't have a GPS fix, but the display shouldn't let us anyway
+            {   // Here we use GPS_Altitude as the correction. We don't receive this from the display since we already have it, and we already have it in Meters - float, so no conversion needed either. 
+                CorrectP1(Pressure, GPS_Altitude_Meters);      // This takes our current barometric pressure in kPa and a known altitude in Meters, corrects p1 and saves the adjustment factor to EEPROM
                 SendDisplay(CMD_ACTION_TAKEN);
                 if (DEBUG) { DebugSerial->print(F("Altitude correction set based on current GPS altitude: ")); DebugSerial->println(GPS_Altitude_Feet); }
             }
+            // Otherwise if no fix do nothing, the display will figure out shortly it didn't work. 
             break;
 
         case RCV_CMD_SET_CURRENT_ALT:
             // We are being given a current altitude, but what we actually save in EEPROM is an adjustment
             {
-                int16_t alt = (sentence->Value * 100) + sentence->Modifier;    // Altitude given
+                int16_t alt = (sentence->Value * 100) + sentence->Modifier;    // Altitude given IN FEET
+                CorrectP1(Pressure, FeetToMeters(alt));      // This takes our current barometric pressure in kPa and a known altitude in Meters, corrects p1 and saves the adjustment factor to EEPROM
                 SendDisplay(CMD_ACTION_TAKEN);
-                if (DEBUG) { DebugSerial->print(F("Altitude correction set based on manual altitude entry: ")); DebugSerial->println(alt); }
+                if (DEBUG) { DebugSerial->print(F("Altitude correction set based on manual altitude entry: ")); DebugSerial->print(alt); Serial.print(F("' Corrected p1: ")); Serial.print(p1,3); Serial.print(F(" Adjustment factor: ")); Serial.println(eeprom.ramcopy.p1_Adjust,3); }
             }
             break; 
         
+        case RCV_CMD_SET_HOME_ALT:
+            // Save home altitude to EEPROM
+            {
+                eeprom.ramcopy.Alt_Home = (sentence->Value * 100) + sentence->Modifier;    
+                EEPROM.updateInt(offsetof(_eeprom_data, Alt_Home), eeprom.ramcopy.Alt_Home);
+                SendDisplay(CMD_ACTION_TAKEN);
+                if (DEBUG) { DebugSerial->print(F("Home altitude set to: ")); DebugSerial->println(eeprom.ramcopy.Alt_Home); }
+            }
+            break;
+            
         case RCV_CMD_SET_TIMEZONE:
             // Update timezone
             CurrentDateTime.timezone = sentence->Value;                             // Ram copy, we have two of them

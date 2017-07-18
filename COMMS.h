@@ -47,11 +47,11 @@
 #define CMD_AAA                         0x34    // 52   UNUSED
 #define CMD_BBB                         0x35    // 53   UNUSED
 #define CMD_OVERDRIVE                   0x36    // 54   Overdrive. Value = true if enabled, false if disabled
-#define CCC                             0x37    // 55   UNUSED
+#define CMD_HOME_ALT                    0x37    // 55   Pass the home altitude to the display in feet, positive numbers ONLY. Value = alt divided by 100, modifier = remainder of feet less than 100 (add to val*100)
 #define CMD_LOW_AIR_WARN                0x38    // 56   Low air warning (suspension air tank). Value = 1 if Low, 0 = if OK
 #define CMD_ZZZ                         0x39    // 57   UNUSED
 #define CMD_TRANS_TABLE                 0x3A    // 58   Baumann settings - value = 1 default, 2 = Table 2
-#define DDD                             0x3B    // 59   UNUSED
+#define CMD_USE_PRESSURE_ALT            0x3B    // 59   If Value = true, display altitude from barometer, if False use GPS
 #define CMD_VOLTAGE                     0x3C    // 60   Send voltage multiplied by 10 (divide by 10 on opposite end)
 #define CMD_GPS_ALTITUDE_POS            0x3D    // 61   Altitude in feet, positive numbers. Value = alt divided by 100, modifier = remainder of feet less than 100 (add to val*100)
 #define CMD_GPS_ALTITUDE_NEG            0x3E    // 62   Altitude in feet, negative numbers, in case I go to Death Valley. 
@@ -64,9 +64,9 @@
 #define CMD_MONTH_DAY                   0x45    // 69   Value holds month (1-12), Modifier holds day (0-31)
 #define CMD_HOUR_MINUTE                 0x46    // 70   Value holds hour (0-23), Modifier holds minute (0-59)
 #define CMD_ACTION_TAKEN                0x47    // 71   Return letter to the display when it asks us to do something, letting it know we actually did. 
-// 0x48    // 72   
-// 0x49    // 73
-// 0x4A    // 74
+#define CMD_PRESSURE_ALTITUDE_POS       0x48    // 72   Altitude in feet, positive numbers. Value = alt divided by 100, modifier = remainder of feet less than 100 (add to val*100)
+#define CMD_PRESSURE_ALTITUDE_NEG       0x49    // 73   Altitude in feet, negative numbers, in case I go to Death Valley.
+#define CMD_PRESSURE_MERCURY            0x4A    // 74   Barometric pressure in inches of mercury (in hg). Value = integer, Modifier = 2 digit. Convert to kPa on the other end if you need to
 
 
 #endif // COMMS_H

@@ -26,19 +26,34 @@ void UpdatePressureAltitude()
     Pressure = fir_basic(ReadPressure_kPa(), PA_NTAPS, PA_line);
 
     // Make sure we don't need to change atmospheric regions
-    VerifyRegion();
+    // VerifyRegion();  // TRUST ME, WE WON'T
 
     // Convert Pressure in kPa to altitude in meters for the correct region
-    Pressure_Altitude_Meters = kPa_To_Meters(Pressure, Region);
+    Pressure_Altitude_Meters = kPa_To_Meters(Pressure);
     
     // Convert to feet and round to nearest integer
-    Pressure_Altitude_Feet = (int16_t)((Pressure_Altitude_Meters * 3.281) + 0.5);
+    Pressure_Altitude_Feet = (int16_t)(MetersToFeet(Pressure_Altitude_Meters) + 0.5);
+
+    // Let's also calculate inches of mercury
+    inHg = convert_kPa_inHG(Pressure);
 }
 
 
 void SendPressureAltitude()
 {
 static int16_t Pressure_Altitude_Feet_Prior = 0;
+
+    uint8_t Alt_Tens = abs(Pressure_Altitude_Feet) % 100;                     // Number of feet under 100
+    uint8_t Alt_Hundreds = abs(Pressure_Altitude_Feet) / 100;                 // Number of feet over 100, divided by 100
+    
+    if (Pressure_Altitude_Feet < 0) SendDisplay(CMD_PRESSURE_ALTITUDE_NEG, Alt_Hundreds, Alt_Tens); 
+    else                            SendDisplay(CMD_PRESSURE_ALTITUDE_POS, Alt_Hundreds, Alt_Tens); 
+
+    float tmp_inHg = inHg + 0.005;           // Round up to nearest one-hundredth
+    uint8_t Pres_Tens = (uint8_t)(tmp_inHg);
+    uint8_t Pres_Fract = (int16_t)(tmp_inHg * 100.0) % 100;
+    SendDisplay(CMD_PRESSURE_MERCURY, Pres_Tens, Pres_Fract);
+    
     
     if (DEBUG && Pressure_Altitude_Feet != Pressure_Altitude_Feet_Prior)
     {
@@ -50,13 +65,14 @@ static int16_t Pressure_Altitude_Feet_Prior = 0;
         DebugSerial->print(F("Pressure Altitude: "));
         DebugSerial->print(Pressure_Altitude_Feet);
         DebugSerial->print(F(" ft (")); 
-        DebugSerial->print(Pressure);
-        DebugSerial->println(F(" kPa)"));
+        DebugSerial->print(Pressure, 3);
+        DebugSerial->print(F(" kPa / "));
+        DebugSerial->print(inHg, 3); 
+        DebugSerial->println(F(" in Hg)"));
         
         Pressure_Altitude_Feet_Prior = Pressure_Altitude_Feet;
     }
 }
-
 
 
 void InitAltimeter(void)
@@ -69,6 +85,11 @@ void InitAltimeter(void)
 
     // Init filter line used for pressure
     setFIR(PA_NTAPS, PA_line, Pressure); 
+
+    // Adjust p1 with whatever is saved in EEPROM
+    // Later if the GPS determines we're at home an adjustment will be
+    // made based on the home altitude.
+    AdjustP1();
 }
 
 
@@ -82,7 +103,7 @@ float ReadPressure_kPa(void)
 *    Function Name:  CorrectP1                                                              *
 *    Return Value:   void                                                                   *
 *    Parameters:    -MeasuredP: current pressure measurement in kPa                         *
-*                   -KnownAltitude: the known pressure altitude in meters of the location   *
+*                   -KnownAltitude: the known pressure altitude in METERS of the location   *
 *                    where MeasuredP is taken.                                              *
 *    Description:    This routine re-calculates the p1 variables used in the altitude       *
 *                    calculations: p1 is typically set to the pressure at sea level on a    *
@@ -90,9 +111,9 @@ float ReadPressure_kPa(void)
 *                    this sets p1 equal to the pressure at sea level for today.             *
 *                    The result should be that pressure measurements taken at the known     *
 *                    location should read exactly the same value as KnownAltitude.          *
-*                    p1 for the Tropopause is also adjusted.                                *
+*                                                                                           *
 ********************************************************************************************/
-void CorrectP1(float MeasuredP, int16_t KnownAltitude)
+void CorrectP1(float MeasuredP, float KnownAltitude)    // KnownAltitude must come in Meters
 {
 // The standard-day value of p1 is corrected for current conditions (known starting height and pressure measurement)
 // Returns nothing, but sets value of float p1_Tsphere and p1_Tpause
@@ -100,95 +121,79 @@ void CorrectP1(float MeasuredP, int16_t KnownAltitude)
     // KnownAltitude = known height of starting location in meters 
     // MeasuredP = Current pressure in kPa as measured by sensor
     
-    //  p1_Tsphere and p1_Tpause are global variables
-    //  p1_Tsphere = p1 Troposphere
-    //  p1_Tpause = p1 Tropopause
+    //  Here we set p1 to its adjusted value using Equation 6 from the Theory section. p1 exists in RAM only and is used to calculate altitude from pressure
+    p1 = MeasuredP * (pow( ((T1+(a*(float)KnownAltitude))/T1) , (g/(a*R)) )); 
 
-    //  Here we set p1_TSphere to its adjusted value using Equation 6 from the Theory section
-    p1_Tsphere = MeasuredP * (pow( ((T1+(a*(float)KnownAltitude))/T1) , (g/(a*R)) )); 
-
-    //  We calculate p1_Tpause by using the formula for pressure in the troposphere, and setting
-    //  h (height) to 11,000 meters. But since we use our corrected p1_TSphere, p1_TPause will
-    //  also be corrected (see Example 3 in the Theory section)
-    p1_Tpause = p1_Tsphere * (pow(((T1 + (a*11000))/T1), (-(g/(a*R)))));
-
-    return;
+    // Calculate an adjustment factor which is the compensated sea level pressure, minus the default sea level pressure. 
+    // The adjustment gets saved to ramcopy (though we don't use it anywhere), and also the EEPROM for our next load. 
+    // Note this function gets called when: 
+    // - You manually set an adjustment using the display (either manually to a specified altitude or when using the GPS as a reference altitude), or
+    // - When the car starts at a location near home, which is likely to be most days you drive it.
+    // However EEPROM has a write life-cycle of 100,000. If you start the car 5 times a day you shouldn't wear it out until 54 years. So I am not going to worry about it. 
+    eeprom.ramcopy.p1_Adjust = (p1 - p1_default); 
+    EEPROM.updateFloat(offsetof(_eeprom_data, p1_Adjust), eeprom.ramcopy.p1_Adjust);
+    // We also save the time when this update was made
+    CopyDateTime(CurrentDateTime, &eeprom.ramcopy.lastAltitudeAdjust);
+    EEPROM.updateBlock(offsetof(_eeprom_data, lastAltitudeAdjust), CurrentDateTime);
 }
 
-
-
-
-
-
-
-
-/********************************************************************************************
-*    Function Name: VerifyRegion                                                            *
-*    Return Value:  Region char, if wanted                                                  *
-*    Parameters:    - current air pressure, just uses Pressure global variable              *
-*    Description:   This routine compares the current air pressure to the air pressure at   *
-*                   the Tropopause/Troposphere border. If kPa is slightly above the         *
-*                   border, Region is changed to Tropopause. If slightly below, it is       *
-*                   changed to Troposphere. There is a band of 0.8 kPa between which the    *
-*                   change will not be triggered, to keep from fluctuating back and forth   *
-*                   when right on the line.                                                 *
-*                   Because the Region variable is global, the calling function could pick  *
-*                   it up without it being returned, if they even wanted to know what it    *
-*                   was (mostly they will just want to set it but don't care what it is),   *
-*                   but it is returned anyways for convenience's sake.                      *
-********************************************************************************************/
-unsigned char VerifyRegion(void)
+// This does not CORRECT p1, it simply adjusts it by our offset amount. 
+void AdjustP1()
 {
-// Checks the current global variable "Pressure" and compares it to known values
-// for Troposphere and Tropopause - if the value is Tropopausal but
-// current region is Tropospherical, it will change the Region 
-// variable, as it will for the other way around. The Region
-// variable is used in kPa_To_Meters to determine which altitude
-// formula should be used. Region values are defined below (defines)
+    p1 = p1_default + eeprom.ramcopy.p1_Adjust;
+}
+
+void DecideAltitudeSource()
+{
+    UsePressureAltitude = false; 
     
-    if (Region == Troposphere)              // We're currently in troposphere
-    { 
-        if (Pressure <= (p1_Tpause - 0.4))  // (p1_Tpause - 0.4 kPa) is approximately 100 m. up 
-        {                                   // into tropopause
-            Region = Tropopause;            // So, we change regions
-        }
-    }   
-    else                                    // We're in tropopause
+    if (startAtHome)
+    {   // If we started this session from near home, we can use pressure altitude because we were able to adjust it to a known starting point
+        UsePressureAltitude = true;
+    }
+    else
     {
-        if (Pressure >= (p1_Tpause + 0.4))  // (p1_Tpause + 0.4 kPa) is approximately 100 m. down
-        {                                   // into troposphere
-            Region = Troposphere;           // So, we change back
+        // We didn't start at home. Have we had a manual altitude adjustment within the last 2 days? 
+        if ((DayOfYear(CurrentDateTime) - DayOfYear(eeprom.ramcopy.lastAltitudeAdjust)) < 3)
+        {
+            UsePressureAltitude = true;
         }
     }
 
-    return Region;
+    // All other cases we use GPS altitude
+
+    return UsePressureAltitude;
 }
 
 
-/********************************************************************************************
-*    Function Name: kPa_To_Meters                                                           *
-*    Return Value:  Meters                                                                  *
-*    Parameters:    kPa - current air pressure                                              *
-*                   MyRegion - Current Region (could have just looked at global var "Region"*
-*    Description:   Here we calculate present altitude in meters based on the formula for   *
-*                   the given region.                                                       *
-********************************************************************************************/
-float kPa_To_Meters(float kPa, unsigned char MyRegion)
+float kPa_To_Meters(float kPa)
 {
     float mtr;
 
-    if (MyRegion == Troposphere)
-    { 
-        // This is Equation 3 from the Theory section
-        mtr = (((pow((kPa/p1_Tsphere),(-(a*R)/g))) * T1) - T1) / a ; 
-    }
-    else    // We're in the Tropopause
-    { 
-        // This is Equation 5 from the Theory section
-        mtr = -(log(kPa/p1_Tpause)/(g/(R*217.15)))+11000;        
-    }
-
+    // This is Equation 3 from the Theory section
+    mtr = (((pow((kPa/p1),(-(a*R)/g))) * T1) - T1) / a ; 
+    
     return mtr;
+}
+
+float FeetToMeters(int16_t feet)
+{
+    return (feet * 0.3048);
+}
+
+int16_t MetersToFeet(int16_t meters)
+{
+    return (meters * 3.28084);
+}
+
+float convert_kPa_inHG(float kPa)
+{
+    return (kPa * 0.2953);   
+}
+
+float convert_inHG_kPa(float hg)
+{
+    return (hg * 3.38639);   
 }
 
 

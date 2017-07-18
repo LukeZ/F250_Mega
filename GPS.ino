@@ -25,6 +25,7 @@ void TurnOffGPS(void)
     Enable_GPS_Interrupt(false);        // Stop the routine interrupt that checks for serial data on the GPS serial port (there won't be any anyway)
     GPS_FirstFix = false;               // Reset the fix flag
     GPS_Antenna_Status_Known = false;   // Reset the antenna known flag
+    startAtHome = false;                // Reset the start flag
     if (TimerID_GPSSender > 0) timer.disable(TimerID_GPSSender);   // If the GPS is turned off we don't need to send info the display (GPS off is not the same as GPS doesn't have a fix)
     if (DEBUG) DebugSerial->println(F("GPS turned off")); 
 }
@@ -339,17 +340,15 @@ void SendGPSInfo(void)
         }
 
             
-        // Altitude
+        // Altitude & Pressure
         // ------------------------------------------------------------------------------------------------
-        GPS_Altitude_Feet = (int16_t)(abs(MetersToFeet(GPS_Altitude_Meters)) + 0.5);  // Convert to rounded absolute integer in feet
-        uint8_t Alt_Tens = GPS_Altitude_Feet % 100;                          // Number of feet under 100
-        uint8_t Alt_Hundreds = GPS_Altitude_Feet / 100;                      // Number of feet over 100, divided by 100
-        if (GPS_Altitude_Meters < 0) SendDisplay(CMD_GPS_ALTITUDE_NEG, Alt_Hundreds, Alt_Tens); 
-        else                         SendDisplay(CMD_GPS_ALTITUDE_POS, Alt_Hundreds, Alt_Tens); 
+        GPS_Altitude_Feet = (int16_t)(MetersToFeet(GPS_Altitude_Meters) + 0.5); // Convert to rounded integer in feet
+        uint8_t Alt_Tens = abs(GPS_Altitude_Feet) % 100;                        // Number of feet under 100
+        uint8_t Alt_Hundreds = abs(GPS_Altitude_Feet) / 100;                    // Number of feet over 100, divided by 100
+        if (GPS_Altitude_Feet < 0) SendDisplay(CMD_GPS_ALTITUDE_NEG, Alt_Hundreds, Alt_Tens); 
+        else                       SendDisplay(CMD_GPS_ALTITUDE_POS, Alt_Hundreds, Alt_Tens); 
         // Test putting the number back together - yes, it works
         // if (DEBUG) { Serial.print(F("Altitude (feet): ")); Serial.println((Alt_Hundreds * 100) + Alt_Tens); }
-
-           
 
 /*
         if (DEBUG)
@@ -374,11 +373,18 @@ void CheckLocationAgainstHome(void)
     if ((uint32_t)abs(dist_to_home) <= MAX_DISTANCE_COUNTS_AS_HOME)
     {
         startAtHome = true;
-        // DO ALTITUDE STUFF HERE
-        // ! ! ! ! ! ! ! ! ! ! ! ! ! ! !
-        // ! ! ! ! ! ! ! ! ! ! ! ! ! ! !
-        // ! ! ! ! ! ! ! ! ! ! ! ! ! ! !
+        CorrectP1(Pressure, (float)eeprom.ramcopy.Alt_Home);        // Correct p1 based on current pressure reading and home altitude in METERS
+        SendDisplay(CMD_USE_PRESSURE_ALT, true);                    // Tell the display to start using barometric altitude for the main display
+        if (DEBUG) { Serial.print(F("Starting near home - barometric pressure adjusted to known home altitude: ")); Serial.print(MetersToFeet(eeprom.ramcopy.Alt_Home)); Serial.println(F(" ft")); } 
     }
+
+    // Regardless, we take this single opportunity to send the display our stored home altitude
+    int16_t homeAlt = (int16_t)(MetersToFeet(eeprom.ramcopy.Alt_Home) + 0.5); // Convert to rounded integer in feet
+    if (homeAlt < 0) homeAlt = 0;                                   // Don't let it get below zero
+    uint8_t Alt_Tens = homeAlt % 100;                               // Number of feet under 100
+    uint8_t Alt_Hundreds = homeAlt / 100;                           // Number of feet over 100, divided by 100
+    SendDisplay(CMD_HOME_ALT, Alt_Hundreds, Alt_Tens); 
+    
 
     if (DEBUG) 
     {

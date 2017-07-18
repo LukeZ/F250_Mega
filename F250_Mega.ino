@@ -262,15 +262,12 @@
     //--------------------------------------------------------------------------------------------------------------------------------------------------->>
         Adafruit_BMP085 bmp;                                        // BMP180 sensor
 
-        #define Troposphere                     0                   // We use this to specify which altitude formula to use
-        #define Tropopause                      1                   // 
-        unsigned char Region = Troposphere;                         // Atmospheric region we're currently in - can also be Tropopause (defined below)
-        float p1_Tsphere = 101.325;                                 // Pressure at sea level in kPa, adjusted with CorrectP1 routine. Initialized here to standard-day value
-        float p1_Tpause = 22.631;                                   // Pressure at beginning of tropopause, adjusted with CorrectP1 routine. Initialized here to standard-day value
         const float T1 = 288.15;                                    // Temperature at base of troposphere (Kelvin)
         const float a = -0.0065;                                    // Slope of temperature gradient in 0-11 km region (Troposphere) - Degrees Kelvin / meter
         const float g = 9.80665;                                    // Acceleration due to gravity meters / second squared
         const float R = 287.05;                                     // Ideal gas constant Joules / kilogram-kelvins
+        const float p1_default = 101.325;                           // Default p1 for the Troposphere. This is the pressure at sea-level on the standard day. 
+        float p1 = 101.325;                                         // Pressure at sea level in kPa, adjusted with CorrectP1 routine. Initialized here to standard-day value
 
         #define PRESSURE_ALT_CHECK_FREQ         500                 // How often to take pressure measurement. We do it rather often since we have a long filter line
         #define PRESSURE_ALT_SEND_FREQ          2000                // How often to send pressure altitude to the screen in mS        
@@ -278,10 +275,15 @@
         int TimerID_PressureAltitudeSender      = 0;                // Timer that sends the readings to the display on some schedule
         const int PA_NTAPS                      = 20;               // How many readings to average pressure over
         float PA_line[PA_NTAPS];                                    // Filter line for Altitude
-        float Pressure                          = 101.325;          // Current static preasure measurement, in kPa. Initializedto standard-day sea level value. 
+        float Pressure                          = 101.325;          // Current barometric pressure measurement, in kPa. Initialized to standard-day sea level value. 
+        float inHg                              = 29.92;            // Current barometric pressure measurement, in inches of mercury. Initialized to standard-day sea level value. 
 
         float Pressure_Altitude_Meters;                             // Current pressure altitude in meters
         int16_t Pressure_Altitude_Feet;                             // Current pressure altitude in feet
+        boolean UsePressureAltitude             = false;            // Should we display altitude based on the barometer true/false, if false show GPS
+                                                                    // Will be true if we start near home, because we know we can adjust barometric pressure to a known starting point.
+                                                                    // Will be true if user has manually set an altitude adjustment within the past 48 hours. 
+                                                                    // Otherwise, revert to GPS altitude
 
 
     // APPLICATION STATE MACHINE
@@ -402,7 +404,7 @@ void loop(void)
                 
                 // Get things rolling
                 TurnOnDisplay();                                        // Turn on the display 
-                InitSessionMinMaxes();                                  // Clear session min/maxes
+                InitSessionVariables();                                 // Initialize session variables such temp min/maxes, are we located at home, etc.. 
                 TurnOnGPS();                                            // Get the GPS going, this one takes a while, do it before the others
                 StartTempReadings();                                    // Start reading temperature data and sending it to the display
                 StartVoltageReadings();                                 // Start reading battery voltage
@@ -467,15 +469,16 @@ void DoVehicleOnStuff(void)
     CheckGPS_ForData();                                         // This checks for a complete and valid sentence; if one is found it updates local variables. Data gets sent to the display independently. 
 }
 
-void InitSessionMinMaxes(void)
+void InitSessionVariables(void)
 {
     Max_MPH = 0;                            // What is the fastest we've gone since the car was turned on
     InternalTemp.minSessionTemp = 200;      // Initialize min/max to values that will be overwritten quickly
     InternalTemp.maxSessionTemp = -50;            
     ExternalTemp.minSessionTemp = 200;      // Initialize min/max to values that will be overwritten quickly
     ExternalTemp.maxSessionTemp = -50;            
-    AuxTemp.minSessionTemp = 200;      // Initialize min/max to values that will be overwritten quickly
+    AuxTemp.minSessionTemp = 200;           // Initialize min/max to values that will be overwritten quickly
     AuxTemp.maxSessionTemp = -50;                    
+    startAtHome = false;                    // Clear this
 }
 
 void PollInputs()
