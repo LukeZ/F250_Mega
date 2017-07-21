@@ -38,7 +38,7 @@
 #define CMD_TEMP_ALLTIME_MIN_NEG        0x2B    // 43   All time minum temp (positive). Value = temp, Modifier = sensor num.
 #define CMD_TEMP_ALLTIME_MAX_POS        0x2C    // 44   All time maximum temp (positive). Value = temp, Modifier = sensor num.
 #define CMD_TEMP_ALLTIME_MAX_NEG        0x2D    // 45   All time maximum temp (negative - highly unlikely). Value = temp, Modifier = sensor num.
-#define CMD_TEMP_LOST                   0x2E    // 46   Command gets sent if a sensor is lost or not present, this lets the display not to rely on the last reading forever. Next time a temp is sent means it has been found again. 
+#define CMD_TEMP_LOST                   0x2E    // 46   Command gets sent if a sensor is lost or not present, this lets the display not to rely on the last reading forever. Next time a temp is sent means it has been found again. Sensor sent in value.
 #define CMD_HAM_ON                      0x2F    // 47   When the Ham is on (value = 1), the CB is off, and vice versa (value = 0)
 #define CMD_XXX                         0x30    // 48   UNUSED
 #define CMD_FUEL_PUMP                   0x31    // 49   Value is on/off

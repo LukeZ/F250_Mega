@@ -86,6 +86,8 @@ boolean ChecksumValid(DataSentence * sentence)
 
 void ProcessCommand(DataSentence * sentence)
 {
+uint8_t cmd;  
+
     switch (sentence->Command)
     {
         case RCV_CMD_SET_HOME_COORD:
@@ -162,6 +164,14 @@ void ProcessCommand(DataSentence * sentence)
                     EEPROM.updateInt(offsetof(_eeprom_data, SavedInternalTemp.AbsoluteMin), InternalTemp.constrained_temp);
                     EEPROM.updateBlock(offsetof(_eeprom_data, SavedInternalTemp.AbsoluteMinTimeStamp), CurrentDateTime);
                     SendDisplay(CMD_ACTION_TAKEN);
+                    // We also send back the values we've just cleared it to, in order that the Teensy will save it on its end as well
+                    EEPROM.readBlock(offsetof(_eeprom_data, SavedInternalTemp), eeprom.ramcopy.SavedInternalTemp);
+                    eeprom.ramcopy.SavedInternalTemp.AbsoluteMin < 0 ? cmd = CMD_TEMP_ALLTIME_MIN_NEG : cmd = CMD_TEMP_ALLTIME_MIN_POS;
+                    SendDisplay(cmd, eeprom.ramcopy.SavedInternalTemp.AbsoluteMin, InternalTemp.sensorName);
+                    SendDisplayDateTime(eeprom.ramcopy.SavedInternalTemp.AbsoluteMinTimeStamp);
+                    eeprom.ramcopy.SavedInternalTemp.AbsoluteMax < 0 ? cmd = CMD_TEMP_ALLTIME_MAX_NEG : cmd = CMD_TEMP_ALLTIME_MAX_POS;
+                    SendDisplay(cmd, eeprom.ramcopy.SavedInternalTemp.AbsoluteMax, InternalTemp.sensorName);
+                    SendDisplayDateTime(eeprom.ramcopy.SavedInternalTemp.AbsoluteMaxTimeStamp);                    
                     if (DEBUG) DebugSerial->println(F("All-Time absolute temps re-set for Internal sensor")); 
                     break;
                 case 1: // External sensor
@@ -170,6 +180,14 @@ void ProcessCommand(DataSentence * sentence)
                     EEPROM.updateInt(offsetof(_eeprom_data, SavedExternalTemp.AbsoluteMin), ExternalTemp.constrained_temp);
                     EEPROM.updateBlock(offsetof(_eeprom_data, SavedExternalTemp.AbsoluteMinTimeStamp), CurrentDateTime);
                     SendDisplay(CMD_ACTION_TAKEN);
+                    // We also send back the values we've just cleared it to, in order that the Teensy will save it on its end as well
+                    EEPROM.readBlock(offsetof(_eeprom_data, SavedExternalTemp), eeprom.ramcopy.SavedExternalTemp);
+                    eeprom.ramcopy.SavedExternalTemp.AbsoluteMin < 0 ? cmd = CMD_TEMP_ALLTIME_MIN_NEG : cmd = CMD_TEMP_ALLTIME_MIN_POS;
+                    SendDisplay(cmd, eeprom.ramcopy.SavedExternalTemp.AbsoluteMin, ExternalTemp.sensorName);
+                    SendDisplayDateTime(eeprom.ramcopy.SavedExternalTemp.AbsoluteMinTimeStamp);
+                    eeprom.ramcopy.SavedExternalTemp.AbsoluteMax < 0 ? cmd = CMD_TEMP_ALLTIME_MAX_NEG : cmd = CMD_TEMP_ALLTIME_MAX_POS;
+                    SendDisplay(cmd, eeprom.ramcopy.SavedExternalTemp.AbsoluteMax, ExternalTemp.sensorName);
+                    SendDisplayDateTime(eeprom.ramcopy.SavedExternalTemp.AbsoluteMaxTimeStamp);                    
                     if (DEBUG) DebugSerial->println(F("All-Time absolute temps re-set for External sensor")); 
                     break;
                 case 2: // Aux sensor
@@ -178,6 +196,14 @@ void ProcessCommand(DataSentence * sentence)
                     EEPROM.updateInt(offsetof(_eeprom_data, SavedAuxTemp.AbsoluteMin), AuxTemp.constrained_temp);
                     EEPROM.updateBlock(offsetof(_eeprom_data, SavedAuxTemp.AbsoluteMinTimeStamp), CurrentDateTime);
                     SendDisplay(CMD_ACTION_TAKEN);
+                    // We also send back the values we've just cleared it to, in order that the Teensy will save it on its end as well
+                    EEPROM.readBlock(offsetof(_eeprom_data, SavedAuxTemp), eeprom.ramcopy.SavedAuxTemp);
+                    eeprom.ramcopy.SavedAuxTemp.AbsoluteMin < 0 ? cmd = CMD_TEMP_ALLTIME_MIN_NEG : cmd = CMD_TEMP_ALLTIME_MIN_POS;
+                    SendDisplay(cmd, eeprom.ramcopy.SavedAuxTemp.AbsoluteMin, AuxTemp.sensorName);
+                    SendDisplayDateTime(eeprom.ramcopy.SavedAuxTemp.AbsoluteMinTimeStamp);
+                    eeprom.ramcopy.SavedAuxTemp.AbsoluteMax < 0 ? cmd = CMD_TEMP_ALLTIME_MAX_NEG : cmd = CMD_TEMP_ALLTIME_MAX_POS;
+                    SendDisplay(cmd, eeprom.ramcopy.SavedAuxTemp.AbsoluteMax, AuxTemp.sensorName);
+                    SendDisplayDateTime(eeprom.ramcopy.SavedAuxTemp.AbsoluteMaxTimeStamp);                    
                     if (DEBUG) DebugSerial->println(F("All-Time absolute temps re-set for Aux sensor")); 
                     break;                    
             }

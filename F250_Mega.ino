@@ -198,7 +198,7 @@
                                                     
         const int TEMP_NTAPS                    = 10;               // Number of elements in the FIR filter for temp readings. Temp is read approximately every (1 sec * number of sensors) seconds (2-3 sec)
 
-        typedef char _TEMP_SENSOR;                                  // Convenient names for our sensors
+        uint8_t _TEMP_SENSOR;                                       // Convenient names for our sensors
         #define TS_INTERNAL                     0
         #define TS_EXTERNAL                     1
         #define TS_AUX                          2
@@ -219,7 +219,8 @@
             boolean sensorLost;                                     // Have we lost the sensor
             float fir[TEMP_NTAPS];                                  // Filter line for temp readings
             uint32_t lastMeasure;                                   // When did we last record a valid measurement
-            _TEMP_SENSOR sensorName;                                // These will get assigned in InitTempStructs()
+            boolean firstReadingAfterFound;                         // 
+            uint8_t sensorName;                                     // These will get assigned in InitTempStructs()
         };
 
         _tempsensor InternalTemp;                                   // Create three global sensor structs

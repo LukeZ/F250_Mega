@@ -144,6 +144,7 @@ _saved_tempdata *sd;
         {
             ts->present = false; 
             ts->sensorLost = true; 
+            ts->firstReadingAfterFound = true;              // Reset this flag
             SendDisplay(CMD_TEMP_LOST, ts->sensorName);     // We also want to tell the Teensy about the loss (command, value = sensorname)
             if (DEBUG)
             {
@@ -171,6 +172,7 @@ void InitTempStructs(void)
     InternalTemp.minSessionTemp = 200;      // Initialize min/max to values that will be overwritten quickly
     InternalTemp.maxSessionTemp = -50;        
     InternalTemp.sensorLost = false;
+    InternalTemp.firstReadingAfterFound = true;
     clearFIR(TEMP_NTAPS, InternalTemp.fir);
     
     ExternalTemp.present = false;
@@ -185,6 +187,7 @@ void InitTempStructs(void)
     ExternalTemp.minSessionTemp = 200;      // Initialize min/max to values that will be overwritten quickly
     ExternalTemp.maxSessionTemp = -50;        
     ExternalTemp.sensorLost = false;
+    ExternalTemp.firstReadingAfterFound = true;
     clearFIR(TEMP_NTAPS, ExternalTemp.fir);
 
     AuxTemp.present = false;
@@ -199,6 +202,7 @@ void InitTempStructs(void)
     AuxTemp.minSessionTemp = 200;      // Initialize min/max to values that will be overwritten quickly
     AuxTemp.maxSessionTemp = -50;        
     AuxTemp.sensorLost = false;
+    AuxTemp.firstReadingAfterFound = true;
     clearFIR(TEMP_NTAPS, AuxTemp.fir);
     
     for( uint8_t i = 0; i < 8; i++) 
@@ -289,6 +293,7 @@ uint16_t UpdateTemp(_tempsensor *ts)
 byte present = 0;
 byte data[12];
 float celsius, fahrenheit;
+int16_t constrained;
 
     // This function should only be called after a conversion has been started and 1 second waited
     present = oneWire.reset();
@@ -338,20 +343,46 @@ float celsius, fahrenheit;
     celsius = (float)raw / 16.0;
     fahrenheit = celsius * 1.8 + 32.0;
 
-    ts->temperature = fir_basic(fahrenheit, TEMP_NTAPS, ts->fir);   // Update average reading
-    ts->constrained_temp = constrain((int16_t)(fahrenheit + 0.5), -255, 255);
-    ts->readingStarted = false;
-    ts->newData = true;
-    ts->lastMeasure = millis();
-    if (ts->sensorLost == true)
+
+    if (ts->firstReadingAfterFound)
     {
-        ts->sensorLost = false;         // We have a reading, sensor is not lost
-        if (DEBUG)
+        // Fill the FIR with our first reading
+        setFIR(TEMP_NTAPS, ts->fir, fahrenheit);        
+    }
+    else
+    {
+        // Otherwise calculate the rolling average
+        fahrenheit = fir_basic(fahrenheit, TEMP_NTAPS, ts->fir);   // Update average reading
+    }
+    constrained = constrain((int16_t)(fahrenheit + 0.5), -255, 255);
+    
+    if (ts->firstReadingAfterFound == false && (abs(ts->constrained_temp - constrained) > 20))
+    {
+        // If we end up at 0 all of a sudden (or 32 exactly fahrenheit), but the prior reading was 
+        // something far away from that, ignore it. This is probably a disconnect. The constrained
+        // temperature (which is average) should not change 10 degree fahrenheit in one reading cycle.
+        // Of course it might be even more different than that if this is the first reading, but then 
+        // again the odds of raw being 0 at the same time shouldn't happen. 
+    }
+    else
+    {
+        ts->temperature = fahrenheit;
+        ts->constrained_temp = constrained;
+        ts->readingStarted = false;
+        ts->newData = true;
+        ts->lastMeasure = millis();
+        if (ts->sensorLost == true)
         {
-            PrintTempSensorName(ts->sensorName);
-            DebugSerial->println(F(" temp sensor restored"));
+            ts->sensorLost = false;         // We have a reading, sensor is not lost
+            if (DEBUG)
+            {
+                PrintTempSensorName(ts->sensorName);
+                DebugSerial->println(F(" temp sensor restored"));
+            }
         }
     }
+    // Either way, we've done some kind of reading, so set this to false until the next time it's lost
+    ts->firstReadingAfterFound = false;
     
     /*
     if (DEBUG)
@@ -550,9 +581,10 @@ void SendTempInfo(void)
                 if (ts->sensorLost == false)
                 {
                     ts->sensorLost = true;                                  // Set lost
+                    ts->firstReadingAfterFound = true;                      // Reset this flag
+                    SendDisplay(CMD_TEMP_LOST, ts->sensorName);             // command, value = sensorname
                     if (DEBUG)
                     {
-                        SendDisplay(CMD_TEMP_LOST, ts->sensorName);             // command, value = sensorname
                         PrintTempSensorName(ts->sensorName);
                         DebugSerial->println(F(" temp sensor lost!")); 
                     }
