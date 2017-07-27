@@ -234,8 +234,8 @@ void UpdateGPSData(void)
 
         // Save coordinates
         // ------------------------------------------------------------------------------------------------
-        Current_Latitude = GPS.latitudeDegrees;
-        Current_Longitude = GPS.longitudeDegrees;
+        Current_Latitude.fval  = GPS.latitudeDegrees;
+        Current_Longitude.fval = GPS.longitudeDegrees;
 
         // Altitude
         // ------------------------------------------------------------------------------------------------
@@ -271,6 +271,11 @@ void SendGPSInfo(void)
     static int16_t lastMinuteDebug = CurrentDateTime.minute; 
     static uint8_t lastSecond = CurrentDateTime.second;
     static uint8_t lastSecondDebug = CurrentDateTime.second;
+    static float lastLat;
+    static float lastLon;
+    static uint32_t lastTime = millis();
+    static uint8_t tState = 0;
+    static uint8_t dMPH;
     
     // Here we send GPS data to the display, if there is any. This is not the same as collecting, parsing, massaging data from the GPS, which takes care of itself elsewhere
 
@@ -317,17 +322,48 @@ void SendGPSInfo(void)
         // ------------------------------------------------------------------------------------------------
         SendDisplay(CMD_GPS_SATELLITES, GPS.satellites);
 
+        // Coordinates
+        // ------------------------------------------------------------------------------------------------
+        if (lastLat != Current_Latitude.fval || lastLon != Current_Longitude.fval)
+        {
+            SendDisplay(CMD_LATITUDE_A, Current_Latitude.bval[0], Current_Latitude.bval[1]);
+            SendDisplay(CMD_LATITUDE_B, Current_Latitude.bval[2], Current_Latitude.bval[3]);
+            SendDisplay(CMD_LONGITUDE_A, Current_Longitude.bval[0], Current_Longitude.bval[1]);
+            SendDisplay(CMD_LONGITUDE_B, Current_Longitude.bval[2], Current_Longitude.bval[3]);
+            lastLat = Current_Latitude.fval;
+            lastLon = Current_Longitude.fval;      
+//            if (DEBUG)
+//            {
+//                DebugSerial->print(F("Coordinates: ")); DebugSerial->print(GPS.latitudeDegrees, 4); DebugSerial->print(F(", ")); DebugSerial->println(GPS.longitudeDegrees, 4);
+//                DebugSerial->print("Coordinates Ada: "); DebugSerial->print(GPS.latitude, 4); DebugSerial->print(GPS.lat); DebugSerial->print(", "); DebugSerial->print(GPS.longitude, 4); DebugSerial->println(GPS.lon);
+//            }
+        }
+
         // Speed & Max speed 
         // ------------------------------------------------------------------------------------------------
-        if (MPH > Max_MPH)
+        if (millis() - lastTime > 4000)
         {
-            SendDisplay(CMD_SPEED_MPH, MPH, 1);                             // Modifier 1 means this is a new max
-            Max_MPH = MPH;
+            switch (tState)
+            {
+                case 0: dMPH = 40; break;
+                case 1: dMPH = 20; break;
+                case 2: dMPH = 10; break;
+                case 3: dMPH = 0;
+            }
+            lastTime = millis();
+            tState += 1;
+            if (tState > 3) tState = 0;
         }
-        else
-        {
-            SendDisplay(CMD_SPEED_MPH, MPH, 0);                             // Modifier 0 means this is regular speed
-        }
+        
+//        if (MPH > Max_MPH)
+//        {
+//            SendDisplay(CMD_SPEED_MPH, MPH, 1);                             // Modifier 1 means this is a new max
+//            Max_MPH = MPH;
+//        }
+//        else
+//        {
+            SendDisplay(CMD_SPEED_MPH, dMPH, 0);                             // Modifier 0 means this is regular speed
+//        }
 
         // Heading in degrees and course
         // ------------------------------------------------------------------------------------------------
@@ -349,19 +385,20 @@ void SendGPSInfo(void)
         else                       SendDisplay(CMD_GPS_ALTITUDE_POS, Alt_Hundreds, Alt_Tens); 
         // Test putting the number back together - yes, it works
         // if (DEBUG) { Serial.print(F("Altitude (feet): ")); Serial.println((Alt_Hundreds * 100) + Alt_Tens); }
-
 /*
         if (DEBUG)
         {
             DebugSerial->print(F("Fix: ")); DebugSerial->print((int)GPS.fix); DebugSerial->print(F(" quality: ")); DebugSerial->print((int)GPS.fixquality); DebugSerial->print(F(" satellites: ")); DebugSerial->println((int)GPS.satellites);
             DebugSerial->print(F("Coordinates: ")); DebugSerial->print(GPS.latitudeDegrees, 4); DebugSerial->print(F(", ")); DebugSerial->println(GPS.longitudeDegrees, 4);
+            // Adafruit version - appends N/S/E/W instead of using negative numbers for south/west
+            // DebugSerial->print("Coordinates Ada: "); DebugSerial->print(GPS.latitude, 4); DebugSerial->print(GPS.lat); DebugSerial->print(", "); DebugSerial->print(GPS.longitude, 4); DebugSerial->println(GPS.lon);
             DebugSerial->print(F("MPH: ")); DebugSerial->println(MPH);
             DebugSerial->print(F("Angle: ")); DebugSerial->println((int16_t)(GPS.angle + 0.5));
             DebugSerial->print(F("Course: ")); DebugSerial->println(cardinal(GPS.angle));
             DebugSerial->print(F("Altitude: ")); DebugSerial->print(MetersToFeet(GPS.altitude), 0); DebugSerial->println(" ft");
             DebugSerial->println();
         }
-        */
+        */ 
     }
 }
 

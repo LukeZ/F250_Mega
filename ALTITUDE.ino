@@ -75,6 +75,7 @@ static int16_t Pressure_Altitude_Feet_Prior = 0;
 }
 
 
+// This only gets called once on application boot - NOT every session
 void InitAltimeter(void)
 {
     // BMP180 sensor object
@@ -91,7 +92,6 @@ void InitAltimeter(void)
     // made based on the home altitude.
     AdjustP1();
 }
-
 
 float ReadPressure_kPa(void)
 {   // Read the BMP sensor and convert returned pA into kPa
@@ -137,16 +137,20 @@ void CorrectP1(float MeasuredP, float KnownAltitude)    // KnownAltitude must co
     EEPROM.updateBlock(offsetof(_eeprom_data, lastAltitudeAdjust), CurrentDateTime);
 }
 
-// This does not CORRECT p1, it simply adjusts it by our offset amount. 
 void AdjustP1()
 {
     p1 = p1_default + eeprom.ramcopy.p1_Adjust;
 }
 
+void SetP1ToDefault(void)
+{
+    p1 = p1_default;
+}
+
 void DecideAltitudeSource()
 {
     UsePressureAltitude = false; 
-    
+
     if (startAtHome)
     {   // If we started this session from near home, we can use pressure altitude because we were able to adjust it to a known starting point
         UsePressureAltitude = true;
@@ -156,11 +160,25 @@ void DecideAltitudeSource()
         // We didn't start at home. Have we had a manual altitude adjustment within the last 2 days? 
         if ((DayOfYear(CurrentDateTime) - DayOfYear(eeprom.ramcopy.lastAltitudeAdjust)) < 3)
         {
+            AdjustP1();                     // This sets p1 equal to standard day p1 plus our adjustment
             UsePressureAltitude = true;
         }
+        else 
+        {
+            // In this case we didn't start from home and our last adjustment was greater than 2 days ago. We'd rather use GPS from here on out, 
+            // but that is only possible if we have a fix. 
+            if (GPS.fix)
+            {
+                UsePressureAltitude = false;
+            }
+            else
+            {   // But here we don't have a fix so our hand is forced. What we don't want is to use an adjustment from several days ago, 
+                // instead just use standard day assumptions
+                SetP1ToDefault();               // This doesn't clear the saved EEPROM adjustment - it just bypasses it
+                UsePressureAltitude = true;     // If we don't have a GPS fix we are stuck with pressure
+            }        
+        }
     }
-
-    // All other cases we use GPS altitude
 
     return UsePressureAltitude;
 }
@@ -170,7 +188,8 @@ float kPa_To_Meters(float kPa)
 {
     float mtr;
 
-    // This is Equation 3 from the Theory section
+    // This is Equation 3 from the Theory section. 
+    // It uses the global p1 variable which we can adjust for known conditions
     mtr = (((pow((kPa/p1),(-(a*R)/g))) * T1) - T1) / a ; 
     
     return mtr;

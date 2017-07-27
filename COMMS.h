@@ -67,6 +67,10 @@
 #define CMD_PRESSURE_ALTITUDE_POS       0x48    // 72   Altitude in feet, positive numbers. Value = alt divided by 100, modifier = remainder of feet less than 100 (add to val*100)
 #define CMD_PRESSURE_ALTITUDE_NEG       0x49    // 73   Altitude in feet, negative numbers, in case I go to Death Valley.
 #define CMD_PRESSURE_MERCURY            0x4A    // 74   Barometric pressure in inches of mercury (in hg). Value = integer, Modifier = 2 digit. Convert to kPa on the other end if you need to
+#define CMD_LATITUDE_A                  0x4B    // 75
+#define CMD_LATITUDE_B                  0x4C    // 76
+#define CMD_LONGITUDE_A                 0x4D    // 77
+#define CMD_LONGITUDE_B                 0x4E    // 78
 
 
 #endif // COMMS_H

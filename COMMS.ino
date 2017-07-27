@@ -94,8 +94,8 @@ uint8_t cmd;
             // Save current coordinates as Home, if we have a fix. The display should only know to try this if we have a fix. 
             if (GPS.fix)
             {   
-                EEPROM.updateFloat(offsetof(_eeprom_data, Lat_Home), Current_Latitude);
-                EEPROM.updateFloat(offsetof(_eeprom_data, Lon_Home), Current_Longitude);
+                EEPROM.updateFloat(offsetof(_eeprom_data, Lat_Home), Current_Latitude.fval);
+                EEPROM.updateFloat(offsetof(_eeprom_data, Lon_Home), Current_Longitude.fval);
                 SendDisplay(CMD_ACTION_TAKEN);
                 if (DEBUG) DebugSerial->println(F("Home coordinates set")); 
             }

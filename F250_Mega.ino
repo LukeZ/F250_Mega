@@ -177,8 +177,14 @@
 
         // GPS Coordinates
         uint8_t HeadingCode;                                        // 16 possible values (0-15) representing the points in a clockwise direction from North (N, NNE, NE, ENE, E, ESE, SE, SSE, S, etc... 
-        float Current_Latitude;                                     // Present (or last known) location in degrees
-        float Current_Longitude;                                    // Present (or last known) location in degrees
+        union {
+            float fval;
+            byte bval[4];
+        } Current_Latitude;                                         // Present (or last known) location in degrees
+        union {                                                     // We put this in a union for easy access to the 4 individual bytes to send over the serial port
+            float fval;
+            byte bval[4];
+        } Current_Longitude;
 
         // GPS Altitude
         float GPS_Altitude_Meters;                                  // Current altitude in meters
@@ -480,6 +486,7 @@ void InitSessionVariables(void)
     AuxTemp.minSessionTemp = 200;           // Initialize min/max to values that will be overwritten quickly
     AuxTemp.maxSessionTemp = -50;                    
     startAtHome = false;                    // Clear this
+    SetP1ToDefault();                       // Clear pressure adjustment
 }
 
 void PollInputs()
