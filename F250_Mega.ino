@@ -177,14 +177,22 @@
 
         // GPS Coordinates
         uint8_t HeadingCode;                                        // 16 possible values (0-15) representing the points in a clockwise direction from North (N, NNE, NE, ENE, E, ESE, SE, SSE, S, etc... 
-        union {
+        union {                                                     // In degrees
             float fval;
             byte bval[4];
-        } Current_Latitude;                                         // Present (or last known) location in degrees
+        } LatitudeDegrees;                                  // Present (or last known) location in degrees
         union {                                                     // We put this in a union for easy access to the 4 individual bytes to send over the serial port
             float fval;
             byte bval[4];
-        } Current_Longitude;
+        } LongitudeDegrees;
+        union {                                                     // In LatLon format
+            float fval;
+            byte bval[4];
+        } Latitude;                                         
+        union {                                             
+            float fval;
+            byte bval[4];
+        } Longitude;
 
         // GPS Altitude
         float GPS_Altitude_Meters;                                  // Current altitude in meters
@@ -287,9 +295,10 @@
 
         float Pressure_Altitude_Meters;                             // Current pressure altitude in meters
         int16_t Pressure_Altitude_Feet;                             // Current pressure altitude in feet
-        boolean UsePressureAltitude             = false;            // Should we display altitude based on the barometer true/false, if false show GPS
+        boolean UsePressureAltitude             = true;             // Should we display altitude based on the barometer true/false, if false show GPS
                                                                     // Will be true if we start near home, because we know we can adjust barometric pressure to a known starting point.
                                                                     // Will be true if user has manually set an altitude adjustment within the past 48 hours. 
+                                                                    // Will be true if we don't have a GPS fix
                                                                     // Otherwise, revert to GPS altitude
 
 
@@ -416,6 +425,7 @@ void loop(void)
                 StartTempReadings();                                    // Start reading temperature data and sending it to the display
                 StartVoltageReadings();                                 // Start reading battery voltage
                 StartPressureReadings();                                // Start reading the barometric pressure sensor
+                DecideAltitudeSource();                                 // Might as well do this too
                 // This will start a repeating timer that will send status updates to the display whether anything has changed or not
                 // Below in the ON state we will also continuously check a Poll routine that will additionally send pertinent updates
                 // the moment any changes are detected. 

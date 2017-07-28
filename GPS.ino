@@ -234,8 +234,10 @@ void UpdateGPSData(void)
 
         // Save coordinates
         // ------------------------------------------------------------------------------------------------
-        Current_Latitude.fval  = GPS.latitudeDegrees;
-        Current_Longitude.fval = GPS.longitudeDegrees;
+        LatitudeDegrees.fval  = GPS.latitudeDegrees;
+        LongitudeDegrees.fval = GPS.longitudeDegrees;
+        Latitude.fval  = GPS.latitude;
+        Longitude.fval  = GPS.longitude;
 
         // Altitude
         // ------------------------------------------------------------------------------------------------
@@ -271,11 +273,8 @@ void SendGPSInfo(void)
     static int16_t lastMinuteDebug = CurrentDateTime.minute; 
     static uint8_t lastSecond = CurrentDateTime.second;
     static uint8_t lastSecondDebug = CurrentDateTime.second;
-    static float lastLat;
-    static float lastLon;
-    static uint32_t lastTime = millis();
-    static uint8_t tState = 0;
-    static uint8_t dMPH;
+    static float lastLatDegrees;
+    static float lastLonDegrees;
     
     // Here we send GPS data to the display, if there is any. This is not the same as collecting, parsing, massaging data from the GPS, which takes care of itself elsewhere
 
@@ -324,14 +323,21 @@ void SendGPSInfo(void)
 
         // Coordinates
         // ------------------------------------------------------------------------------------------------
-        if (lastLat != Current_Latitude.fval || lastLon != Current_Longitude.fval)
+        if (lastLatDegrees != LatitudeDegrees.fval || lastLonDegrees != LongitudeDegrees.fval)
         {
-            SendDisplay(CMD_LATITUDE_A, Current_Latitude.bval[0], Current_Latitude.bval[1]);
-            SendDisplay(CMD_LATITUDE_B, Current_Latitude.bval[2], Current_Latitude.bval[3]);
-            SendDisplay(CMD_LONGITUDE_A, Current_Longitude.bval[0], Current_Longitude.bval[1]);
-            SendDisplay(CMD_LONGITUDE_B, Current_Longitude.bval[2], Current_Longitude.bval[3]);
-            lastLat = Current_Latitude.fval;
-            lastLon = Current_Longitude.fval;      
+            SendDisplay(CMD_LATITUDE_DEGREES_A, LatitudeDegrees.bval[0], LatitudeDegrees.bval[1]);
+            SendDisplay(CMD_LATITUDE_DEGREES_B, LatitudeDegrees.bval[2], LatitudeDegrees.bval[3]);
+            SendDisplay(CMD_LONGITUDE_DEGREES_A, LongitudeDegrees.bval[0], LongitudeDegrees.bval[1]);
+            SendDisplay(CMD_LONGITUDE_DEGREES_B, LongitudeDegrees.bval[2], LongitudeDegrees.bval[3]);
+            lastLatDegrees = LatitudeDegrees.fval;
+            lastLonDegrees = LongitudeDegrees.fval;      
+
+            // Send the LatLon format as well. We don't need to save "last" variables of this, if the degrees change so do these
+            SendDisplay(CMD_LATITUDE_A, Latitude.bval[0], Latitude.bval[1]);
+            SendDisplay(CMD_LATITUDE_B, Latitude.bval[2], Latitude.bval[3]);
+            SendDisplay(CMD_LONGITUDE_A, Longitude.bval[0], Longitude.bval[1]);
+            SendDisplay(CMD_LONGITUDE_B, Longitude.bval[2], Longitude.bval[3]);            
+
 //            if (DEBUG)
 //            {
 //                DebugSerial->print(F("Coordinates: ")); DebugSerial->print(GPS.latitudeDegrees, 4); DebugSerial->print(F(", ")); DebugSerial->println(GPS.longitudeDegrees, 4);
@@ -341,6 +347,10 @@ void SendGPSInfo(void)
 
         // Speed & Max speed 
         // ------------------------------------------------------------------------------------------------
+// USED TO TEST SPEEDO RAMPING
+        static uint32_t lastTime = millis();
+        static uint8_t tState = 0;
+        static uint8_t dMPH;
         if (millis() - lastTime > 4000)
         {
             switch (tState)
@@ -354,26 +364,32 @@ void SendGPSInfo(void)
             tState += 1;
             if (tState > 3) tState = 0;
         }
-        
-//        if (MPH > Max_MPH)
-//        {
-//            SendDisplay(CMD_SPEED_MPH, MPH, 1);                             // Modifier 1 means this is a new max
-//            Max_MPH = MPH;
-//        }
-//        else
-//        {
+// */        
+        if (MPH > Max_MPH)
+        {
+            SendDisplay(CMD_SPEED_MPH, dMPH, 1);                             // Modifier 1 means this is a new max
+            Max_MPH = MPH;
+        }
+        else
+        {
             SendDisplay(CMD_SPEED_MPH, dMPH, 0);                             // Modifier 0 means this is regular speed
-//        }
+        }
 
         // Heading in degrees and course
         // ------------------------------------------------------------------------------------------------
-        if (MPH >= Minimum_MPH)                                             // Only update headings if we are moving
-        {
-            int16_t angle = (int16_t)(GPS_Avg_Bearing + 0.5);               // Round averaged bearing and convert to integer
+        int16_t angle = 0;
+        static int16_t testAngle = 0;
+//        if (MPH >= Minimum_MPH)                                             // Only update headings if we are moving
+//        {
+//            angle = (int16_t)(GPS_Avg_Bearing + 0.5);               // Round averaged bearing and convert to integer
+                testAngle += 4;
+                if (testAngle > 360) testAngle = testAngle - 360; 
+                angle = testAngle;
+                SendDisplay(CMD_GPS_HEADING, cardinalDirection(angle));     
             if (angle > 180) SendDisplay(CMD_GPS_ANGLE, (angle - 180), 1);  // Modifier = 1 means this angle needs +180 added to it
             else             SendDisplay(CMD_GPS_ANGLE, angle, 0);          // Modifier = 0 means this angle is the direct number (but won't exceed 180)
-            SendDisplay(CMD_GPS_HEADING, cardinalDirection(GPS.angle));     // Value contains a number from 0-15 representing one of the 16 cardinal directions 
-        }
+//            SendDisplay(CMD_GPS_HEADING, cardinalDirection(GPS.angle));     // Value contains a number from 0-15 representing one of the 16 cardinal directions 
+//        }
 
             
         // Altitude & Pressure

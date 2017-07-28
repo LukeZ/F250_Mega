@@ -91,6 +91,8 @@ void InitAltimeter(void)
     // Later if the GPS determines we're at home an adjustment will be
     // made based on the home altitude.
     AdjustP1();
+
+    DecideAltitudeSource();
 }
 
 float ReadPressure_kPa(void)
