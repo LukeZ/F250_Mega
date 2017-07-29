@@ -264,9 +264,17 @@
     
     // GSM BOARD
     //--------------------------------------------------------------------------------------------------------------------------------------------------->>
+    // https://www.arduino.cc/en/Reference/GSM
+    // The libraries are at C:\Arduino\libraries\GSM\src\
+    // The one with shutdown is GSM3ShieldV1AccessProvider.h/cpp
+    // See also GSM3IO.h for pin definitins. It implies there should be an RXINT (receive interrupt) pin of some kind, probably to notify the Mega that 
+    // a message has been received. I don't seem to have connected this - confusingly, for the Mega GSM3IO.h says the RxInt pin should be pin 4 but I am using
+    // that for the reset. Probably I got confused. I am not using the GSM shield for now and may never so for the time being it doesn't matter. 
         #define GSM_TxOut                       10                  // Meaning tx-out from GSM, rx-in to Arduino
         #define GSM_RxIn                        3                   // Meaning rx-in  to GSM, tx-out from Arduino
-        #define GSM_RST                         4
+        #define GSM_RST                         4                   // This is a non-standard pin for reset. It is supposed to be pin 7, which is what this wire is attached to on the GSM shield, 
+                                                                    // but on the Mega side the wire is actually connected to pin 4. That means the stock GSM library shutdown function won't work
+                                                                    // because it will reference pin 7 (GSM3IO.h)
 
         #define PINNUMBER                       ""                  // This is not the physical pin, this is the PIN account number for your SIM card
 
@@ -348,6 +356,10 @@ void setup()
         boolean did_we_init = eeprom.begin();                       // begin() will initialize EEPROM if it never has been before, and load all EEPROM settings into our ramcopy struct
         if (did_we_init && DEBUG) { DebugSerial->println(F("EEPROM Initalized")); }    
         CurrentDateTime.timezone = eeprom.ramcopy.Timezone;         // It's convenient to have Timezone in EEPROM but from here on out we'd like to refer to it using our date struct
+
+    // GSM
+    // -------------------------------------------------------------------------------------------------------------------------------------------------->    
+        // Nothing for now. We shut it down via the Rst Pin in SetupMyPins (manually, not using the GSM library, because you are using a non-standard pin)
 
     // Sensors
     // -------------------------------------------------------------------------------------------------------------------------------------------------->        
@@ -684,7 +696,7 @@ void SetMyPins()
         pinMode(GSM_TxOut, INPUT);    // Meaning tx-out from GSM, rx-in to Arduino
         pinMode(GSM_RxIn, OUTPUT);    // Meaning rx-in  to GSM, tx-out from Arduino
         pinMode(GSM_RST, OUTPUT);
-  
+        digitalWrite(GSM_RST, LOW);     // Shut-down the GSM modem. There is a gsm.shutdown() function but it will use Mega pin 7 and I am actually using Mega pin 4
 }
 
 
