@@ -347,7 +347,7 @@ void SendGPSInfo(void)
 
         // Speed & Max speed 
         // ------------------------------------------------------------------------------------------------
-// USED TO TEST SPEEDO RAMPING
+        /* USED TO TEST SPEEDO RAMPING
         static uint32_t lastTime = millis();
         static uint8_t tState = 0;
         static uint8_t dMPH;
@@ -363,16 +363,15 @@ void SendGPSInfo(void)
             lastTime = millis();
             tState += 1;
             if (tState > 3) tState = 0;
-        }
-// */        
+        }   */
         if (MPH > Max_MPH)
         {
-            SendDisplay(CMD_SPEED_MPH, dMPH, 1);                             // Modifier 1 means this is a new max
+            SendDisplay(CMD_SPEED_MPH, MPH, 1);                             // Modifier 1 means this is a new max
             Max_MPH = MPH;
         }
         else
         {
-            SendDisplay(CMD_SPEED_MPH, dMPH, 0);                             // Modifier 0 means this is regular speed
+            SendDisplay(CMD_SPEED_MPH, MPH, 0);                             // Modifier 0 means this is regular speed
         }
 
         // Heading in degrees and course
