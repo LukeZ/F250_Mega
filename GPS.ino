@@ -347,10 +347,10 @@ void SendGPSInfo(void)
 
         // Speed & Max speed 
         // ------------------------------------------------------------------------------------------------
-        /* USED TO TEST SPEEDO RAMPING
+        // /* USED TO TEST SPEEDO RAMPING
         static uint32_t lastTime = millis();
         static uint8_t tState = 0;
-        static uint8_t dMPH;
+/*        static uint8_t dMPH;
         if (millis() - lastTime > 4000)
         {
             switch (tState)
@@ -378,17 +378,24 @@ void SendGPSInfo(void)
         // ------------------------------------------------------------------------------------------------
         int16_t angle = 0;
         static int16_t testAngle = 0;
-//        if (MPH >= Minimum_MPH)                                             // Only update headings if we are moving
-//        {
-//            angle = (int16_t)(GPS_Avg_Bearing + 0.5);               // Round averaged bearing and convert to integer
-                testAngle += 4;
-                if (testAngle > 360) testAngle = testAngle - 360; 
-                angle = testAngle;
-                SendDisplay(CMD_GPS_HEADING, cardinalDirection(angle));     
+        if (MPH >= Minimum_MPH)                                             // Only update headings if we are moving
+        {
+//            switch (tState)
+//            {
+//                case 0: testAngle += 4; break;
+//                case 1: testAngle += 20; break;
+//                case 2: testAngle += 80; break;
+//                case 3: testAngle += 10; break;
+//            }
+//                testAngle += 4;
+//                if (testAngle > 360) testAngle = testAngle - 360; 
+//                angle = testAngle;
+//                SendDisplay(CMD_GPS_HEADING, cardinalDirection(angle));     
+            angle = (int16_t)(GPS_Avg_Bearing + 0.5);               // Round averaged bearing and convert to integer
             if (angle > 180) SendDisplay(CMD_GPS_ANGLE, (angle - 180), 1);  // Modifier = 1 means this angle needs +180 added to it
             else             SendDisplay(CMD_GPS_ANGLE, angle, 0);          // Modifier = 0 means this angle is the direct number (but won't exceed 180)
-//            SendDisplay(CMD_GPS_HEADING, cardinalDirection(GPS.angle));     // Value contains a number from 0-15 representing one of the 16 cardinal directions 
-//        }
+            SendDisplay(CMD_GPS_HEADING, cardinalDirection(GPS.angle));     // Value contains a number from 0-15 representing one of the 16 cardinal directions 
+        }
 
             
         // Altitude & Pressure

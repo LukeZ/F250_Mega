@@ -13,7 +13,7 @@
 //=======================================================================================================================================>>
 // If any changes are made to the _eeprom_data struct in OP_EEPROM_Struct.h, the EEPROM_INIT definition below must be changed to a new number.
 
-    #define EEPROM_INIT             0x6543         // Modified 7/20/2017
+    #define EEPROM_INIT             0xAD75         // Modified 7/29/2017
 //
 //
 //=======================================================================================================================================>>
