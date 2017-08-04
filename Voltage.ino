@@ -29,7 +29,13 @@ float MeasureVoltage(void)
 {
     int VRaw; 
     VRaw = analogRead(AttoVoltage);
-    return (VRaw/49.44);                                                                // AttoPilot 45 Amp board https://www.sparkfun.com/products/10643
+    return (VRaw/39.44);                                                                // AttoPilot 45 Amp board https://www.sparkfun.com/products/10643
+    // Actual divisor is calculated thusly: 
+    // Calculate voltage divider ratio RATIO: 4.7k / 19.4 = 0.242268041 mV output of Atto for every real volt. The resistor values are listed in the spec sheet
+    // Calculate voltage per ADC step: 6.29 measured board logic voltage / 1024 steps = 0.006142578
+    // Divisor = RATIO / VPerADC = 39.44
+    // The variable in all this is your logic level voltage. The SparkFun sample sketch provided with the Atto assumes 5 volts exactly, but that is not what the regulator on my Mega puts out.
+    // Hopefully the regulator is at least stable... 
 }
 
 void UpdateVoltage()
@@ -45,7 +51,7 @@ void SendVoltageInfo()
     float   fSendVoltage;   // Float voltage
     uint8_t iSendVoltage;   // Integer voltage
     
-    fSendVoltage = BattVoltage * 10.0;                                                  // Multiply by 10 to move the decimal point over
+    fSendVoltage = (BattVoltage + 0.05) * 10.0;                                         // Round up and multiply by 10 to move the decimal point over
     iSendVoltage = constrain((int16_t)fSendVoltage, 0, 255);                            // Convert to integer (lose anything beyond one decimal point), the constrain to 255 = 25.5 volts, we should never reach that,
                                                                                         // and anyway the sensor will saturate at ~20 volts. 
     
@@ -54,7 +60,7 @@ void SendVoltageInfo()
     if (DEBUG && (int32_t)BattVoltage != (int32_t)BattVoltage_Prior)
     {
         DebugSerial->print(F("Battery voltage: ")); 
-        DebugSerial->print(BattVoltage, 1);
+        DebugSerial->print(BattVoltage, 2);
         DebugSerial->print(F(" ("));
         DebugSerial->print(iSendVoltage);
         DebugSerial->println(F(")"));     
