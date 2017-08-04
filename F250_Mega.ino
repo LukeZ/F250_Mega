@@ -80,7 +80,7 @@
         boolean FuelPump_On                     = false;
     
         // Input board 3 - negative input signals
-        #define SS1                             38                  // Baumann speed sensor           
+        #define SS1                             38                  // Transmission low gear (shift solenoid 1). Would indicate we are in 1st or 2nd gear. Not sure why I care about this necessarily. 
         #define BaumannTable2                   39                  // Alternate transmission configuration
         #define Viper_Armed                     40                  // Is alarm system active (not triggered, but waiting)
         #define Viper_Ch2                        2                  // Aux button from alarm keyfob, we will massage the signal. Moved from D41 to D2 so I can take advantage of interrupt on change pin. 
