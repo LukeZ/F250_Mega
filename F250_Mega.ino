@@ -67,29 +67,28 @@
         _TQC_STATE TQCLockState                 = TQC_UNKNOWN;
         
         // Input board 2 - positive input signals
-        #define FuelPump                        22
-        // the other 7 are for now unusued inputs
-        #define DI_22                           23
-        #define DI_23                           24
-        #define DI_24                           25
-        #define DI_25                           26
-        #define DI_26                           27
-        #define DI_27                           28
-        #define DI_28                           29        
+        #define FuelPump                        22                  // Fuel pump
+        #define DI_23                           23                  // Nothing
+        #define DI_24                           24                  // Nothing
+        #define DI_25                           25                  // Nothing
+        #define DI_26                           26                  // Nothing
+        #define DI_27                           27                  // Nothing
+        #define DI_28                           28                  // Nothing
+        #define BaumannTable2                   29                  // Alternate transmission configuration (Baumann Table 2 when High, Table 1 (default) when Low)
         // Status 2 tracking variables
         boolean FuelPump_On                     = false;
+        boolean AlternateTransSetting           = false;
     
         // Input board 3 - negative input signals
         #define SS1                             38                  // Transmission low gear (shift solenoid 1). Would indicate we are in 1st or 2nd gear. Not sure why I care about this necessarily. 
-        #define BaumannTable2                   39                  // Alternate transmission configuration
+        #define DI_39                           39                  // Nothing
         #define Viper_Armed                     40                  // Is alarm system active (not triggered, but waiting)
         #define Viper_Ch2                        2                  // Aux button from alarm keyfob, we will massage the signal. Moved from D41 to D2 so I can take advantage of interrupt on change pin. 
         #define Low_Air                         42                  // Low air alarm
-        #define DI_36                           43
-        #define DI_37                           44
-        #define DI_38                           45
+        #define DI_43                           43                  // Nothing
+        #define DI_44                           44                  // Nothing
+        #define DI_45                           45                  // Nothing
         // Status 3 tracking variables
-        boolean AlternateTransSetting           = false;
         boolean AlarmArmed                      = false;
         boolean Low_Air_Warning                 = false;
 
@@ -575,15 +574,20 @@ void PollInputs()
         if (DEBUG) DebugSerial->println(F("Overdrive enabled")); 
     }    
 
-    // Baumann Table 2 (alternate transmission configuration settings - negative signal means Table 2 active)
+    // Baumann Table 2 (alternate transmission configuration settings - positive optoisolator)
+    //  Positive means Table 2 (opto input deactivated/held to ground by Table 2 switch, so output goes to pullup state), 
+    //  Negative signal means Table 1 active (when the switch isn't held to Ground, we find Baumann sources a voltage near, but not at, VIN, but enough to power the opto, which then holds the output low)
     // -------------------------------------------------------------------------------------------------------------------------------------------------->     
-    if (digitalRead(BaumannTable2) == DI_Low && AlternateTransSetting == false)  
+    // WE HAVE CHANGED THIS ONE. We are now putting the input on a Positive optoisolator. When we read a negative signal, that means the opto was powerered
+    // and is holding our input to ground. THIS IS NOW WHAT HAPPENS WHEN Table 1 is selected, or in other words, the default. When Table 2 is selected the 
+    // opto turns off, and our output reverts to high due to pullups. 
+    if (digitalRead(BaumannTable2) == DI_High && AlternateTransSetting == false)    // Input high = Table 2 selected
     {
         AlternateTransSetting = true;
         SendDisplay(CMD_TRANS_TABLE, 2);
         if (DEBUG) DebugSerial->println(F("Baumann Table 2 selected")); 
     }
-    if (digitalRead(BaumannTable2) == DI_High && AlternateTransSetting == true)
+    if (digitalRead(BaumannTable2) == DI_Low && AlternateTransSetting == true)     // Input low = Table 1 selected    
     {
         AlternateTransSetting = false;
         SendDisplay(CMD_TRANS_TABLE, 1);
@@ -631,24 +635,23 @@ void SetMyPins()
         
         // Input board 2 - positive input signals
         pinMode(FuelPump, INPUT_PULLUP);
-        // the other 7 are for now unusued inputs
-        pinMode(DI_22, INPUT_PULLUP);
-        pinMode(DI_23, INPUT_PULLUP);
-        pinMode(DI_24, INPUT_PULLUP);
-        pinMode(DI_25, INPUT_PULLUP);
-        pinMode(DI_26, INPUT_PULLUP);
-        pinMode(DI_27, INPUT_PULLUP);
-        pinMode(DI_28, INPUT_PULLUP);
+        pinMode(DI_23, INPUT_PULLUP);               // Nothing
+        pinMode(DI_24, INPUT_PULLUP);               // Nothing
+        pinMode(DI_25, INPUT_PULLUP);               // Nothing
+        pinMode(DI_26, INPUT_PULLUP);               // Nothing
+        pinMode(DI_27, INPUT_PULLUP);               // Nothing
+        pinMode(DI_28, INPUT_PULLUP);               // Nothing
+        pinMode(BaumannTable2, INPUT_PULLUP);
 
         // Input board 3 - negative input signals
         pinMode(SS1, INPUT_PULLUP);
-        pinMode(BaumannTable2, INPUT_PULLUP);
+        pinMode(DI_39, INPUT_PULLUP);               // Nothing
         pinMode(Viper_Armed, INPUT_PULLUP);
         pinMode(Viper_Ch2, INPUT_PULLUP);
         pinMode(Low_Air, INPUT_PULLUP);
-        pinMode(DI_36, INPUT_PULLUP);
-        pinMode(DI_37, INPUT_PULLUP);
-        pinMode(DI_38, INPUT_PULLUP);
+        pinMode(DI_43, INPUT_PULLUP);               // Nothing
+        pinMode(DI_44, INPUT_PULLUP);               // Nothing
+        pinMode(DI_45, INPUT_PULLUP);               // Nothing
 
 
     // ANALOG INPUTS
