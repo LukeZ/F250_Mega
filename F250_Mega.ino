@@ -19,7 +19,7 @@
     // SERIAL   (GPS Serial defined below in GPS section)
     //--------------------------------------------------------------------------------------------------------------------------------------------------->>
         HardwareSerial                          *DebugSerial;       // Which serial port to print debug messages to (HardwareSerial is equal to Serial0/Serial Port 0/USART0)
-        boolean DEBUG                           = false;             // Print debugging messages to the PC
+        boolean DEBUG                           = true;             // Print debugging messages to the PC
         
         #define DisplaySerial                   Serial3             // The hardware serial port assigned to the Teensy display computer
         #define SENTENCE_BYTES                  5                   // How many bytes in a valid sentence. 
@@ -581,13 +581,14 @@ void PollInputs()
     // WE HAVE CHANGED THIS ONE. We are now putting the input on a Positive optoisolator. When we read a negative signal, that means the opto was powerered
     // and is holding our input to ground. THIS IS NOW WHAT HAPPENS WHEN Table 1 is selected, or in other words, the default. When Table 2 is selected the 
     // opto turns off, and our output reverts to high due to pullups. 
-    if (digitalRead(BaumannTable2) == DI_High && AlternateTransSetting == false)    // Input high = Table 2 selected
+    // DON'T USE DI_High or DI_Low HERE! Use regular HIGH/LOW because we are meaning what we say. 
+    if (digitalRead(BaumannTable2) == HIGH && AlternateTransSetting == false)    // Input high = Table 2 selected
     {
         AlternateTransSetting = true;
         SendDisplay(CMD_TRANS_TABLE, 2);
         if (DEBUG) DebugSerial->println(F("Baumann Table 2 selected")); 
     }
-    if (digitalRead(BaumannTable2) == DI_Low && AlternateTransSetting == true)     // Input low = Table 1 selected    
+    if (digitalRead(BaumannTable2) == LOW && AlternateTransSetting == true)     // Input low = Table 1 selected    
     {
         AlternateTransSetting = false;
         SendDisplay(CMD_TRANS_TABLE, 1);
