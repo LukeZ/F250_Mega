@@ -19,7 +19,7 @@
     // SERIAL   (GPS Serial defined below in GPS section)
     //--------------------------------------------------------------------------------------------------------------------------------------------------->>
         HardwareSerial                          *DebugSerial;       // Which serial port to print debug messages to (HardwareSerial is equal to Serial0/Serial Port 0/USART0)
-        boolean DEBUG                           = true;             // Print debugging messages to the PC
+        boolean DEBUG                           = false;            // Print debugging messages to the PC
         
         #define DisplaySerial                   Serial3             // The hardware serial port assigned to the Teensy display computer
         #define SENTENCE_BYTES                  5                   // How many bytes in a valid sentence. 
