@@ -1,5 +1,5 @@
 
-// This routine gets called whenver the input pin from the Viper Channel 2 signal changes
+// This routine gets called whenever the input pin from the Viper Channel 2 signal changes
 void ToggleRearLights(void)
 {
     // When the Aux button on the keyfob is held down for more than 1.5 seconds, the Viper will hold this line to ground for as long as it is held.
@@ -36,8 +36,8 @@ void HandleUpdateLightsFlag(void)
         // But also - set a timer that will automatically turn them off after some length of time, in case the user forgets
         timer.setTimeout(300000L, TurnOffAuxRearLights);    // We wait 5 minutes for auto-off. Of course this will only work so long as timer is being polled
 
-        // FOR TESTING
-        SoundHorn(500);
+        // FOR TESTING - your ears will destroy!
+//        SoundHorn(500);
         if (DEBUG) DebugSerial->println("Rear Lights On");    
     }
 }
