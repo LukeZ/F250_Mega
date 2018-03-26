@@ -221,6 +221,7 @@
         struct _tempsensor{                             
             byte address[8];                                        // One-Wire address
             boolean present;                                        // Sensor found
+            boolean known;                                          // Whether or not it was found, do we know its address
             byte type_s;                                            // Sensor type 1 = DS18S20 or old DS1820, 0 = DS18B20 or DS1822
             float temperature;                                      // Current temperature in Fahrenheit
             int16_t constrained_temp;                               // Integer value between -255 and 255

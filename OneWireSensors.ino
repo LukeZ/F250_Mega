@@ -38,7 +38,6 @@ void SetupOneWireSensors()
 {
 byte type_s;
 byte addr[8];
-uint8_t sensorCount = 0;
 boolean correctType = false; 
 
 boolean Found[NUM_TEMP_SENSORS] = {false, false, false};
@@ -46,7 +45,7 @@ _tempsensor *ts;
 _saved_tempdata *sd;
     
     // See if anything is attached
-    while(oneWire.search(addr) == true && sensorCount < 3)
+    while(oneWire.search(addr) == true)
     {
         // the first ROM byte indicates which chip, here we only want to save temp sensors
         correctType = false; 
@@ -59,53 +58,64 @@ _saved_tempdata *sd;
 
         if (correctType)
         {
-            sensorCount += 1;
-
             // See if we have this one saved already
             // Internal? 
             if (memcmp(addr, eeprom.ramcopy.TempAddress_Int, 8) == 0)
             {   // Yes, this is the internal sensor
-                for (uint8_t i=0; i<8; i++) { InternalTemp.address[i] = addr[i]; }
                 InternalTemp.type_s = type_s;
                 Found[TS_INTERNAL] = true; 
             }
             // External? 
             else if (memcmp(addr, eeprom.ramcopy.TempAddress_Ext, 8) == 0)
             {   // Yes, this is the external sensor
-                for (uint8_t i=0; i<8; i++) { ExternalTemp.address[i] = addr[i]; }
                 ExternalTemp.type_s = type_s;
                 Found[TS_EXTERNAL] = true;
             }
             // Aux? 
             else if (memcmp(addr, eeprom.ramcopy.TempAddress_Aux, 8) == 0)
             {   // Yes, this is the aux sensor
-                for (uint8_t i=0; i<8; i++) { AuxTemp.address[i] = addr[i]; }
                 AuxTemp.type_s = type_s;
                 Found[TS_AUX] = true;
             }
             else
-            {   // No, we haven't seen this sensor before. We save the first previously-unseen sensor as internal, the second as external, third as aux
-                // This means if you want to save the internal sensor, plug it in but not the external, boot up and let it save. Now disconnect power, 
-                // plug in the external sensor, and reboot. Now disconnect power again, connect the aux, and reboot. 
-                if (sensorCount == 1)   
+            {   // No, we haven't seen this sensor before. We save the first previously-unseen sensor as internal, the second as external, third as aux.
+                // To do a first setup, first clear all EEPROM addresses by clearing EEPROM entirely (change EEPROM_INIT value in \src\F250_EEPROM\F250_EEPROM.h)
+                // Plug in your Internal sensor first, and wait for it to be found (watch the Debug screen). After it has been found, plug in the external, wait again, 
+                // then you can do Aux last. You do not need to reboot between adding sensors, but you do need to wait for the one you have just plugged in to register
+                // before you plug in the next one. 
+                // After the addresses have been saved they are not overwritten again and only those three sensors will be read from then on, unless you clear EEPROM 
+                // again which requires a flash of new firmware. 
+                if (InternalTemp.known == false)   
                 {
-                    for (uint8_t i = 0; i<8; i++)   { eeprom.ramcopy.TempAddress_Int[i] = addr[i]; InternalTemp.address[i] = addr[i]; }
+                    PrintTempSensorName(TS_INTERNAL);
+                    DebugSerial->print(F(" temp sensor address saved ("));
+                    for (uint8_t i = 0; i<8; i++)   { eeprom.ramcopy.TempAddress_Int[i] = addr[i]; InternalTemp.address[i] = addr[i]; DebugSerial->print(addr[i]); DebugSerial->print(" ");}
+                    DebugSerial->println(")");
                     EEPROM.updateBlock(offsetof(_eeprom_data, TempAddress_Int), InternalTemp.address);
                     InternalTemp.type_s = type_s;
+                    InternalTemp.known = true;
                     Found[TS_INTERNAL] = true;
                 }
-                else if (sensorCount == 2)
+                else if (ExternalTemp.known == false)
                 {
-                    for (uint8_t i = 0; i<8; i++)   { eeprom.ramcopy.TempAddress_Ext[i] = addr[i]; ExternalTemp.address[i] = addr[i]; }
+                    PrintTempSensorName(TS_EXTERNAL);
+                    DebugSerial->print(F(" temp sensor address saved ("));                    
+                    for (uint8_t i = 0; i<8; i++)   { eeprom.ramcopy.TempAddress_Ext[i] = addr[i]; ExternalTemp.address[i] = addr[i]; DebugSerial->print(addr[i]); DebugSerial->print(" ");}
+                    DebugSerial->println(")");
                     EEPROM.updateBlock(offsetof(_eeprom_data, TempAddress_Ext), ExternalTemp.address);
                     ExternalTemp.type_s = type_s;
+                    ExternalTemp.known = true;
                     Found[TS_EXTERNAL] = true;
                 }
-                else if (sensorCount == 3)
+                else if (AuxTemp.known == false)
                 {
-                    for (uint8_t i = 0; i<8; i++)   { eeprom.ramcopy.TempAddress_Aux[i] = addr[i]; AuxTemp.address[i] = addr[i]; }
+                    PrintTempSensorName(TS_AUX);
+                    DebugSerial->print(F(" temp sensor address saved ("));                    
+                    for (uint8_t i = 0; i<8; i++)   { eeprom.ramcopy.TempAddress_Aux[i] = addr[i]; AuxTemp.address[i] = addr[i]; DebugSerial->print(addr[i]); DebugSerial->print(" ");}
+                    DebugSerial->println(")");
                     EEPROM.updateBlock(offsetof(_eeprom_data, TempAddress_Aux), AuxTemp.address);
                     AuxTemp.type_s = type_s;
+                    AuxTemp.known = true;
                     Found[TS_AUX] = true; 
                 }                
             }
@@ -115,9 +125,9 @@ _saved_tempdata *sd;
     for (uint8_t i=0; i<NUM_TEMP_SENSORS; i++)
 
     {
-        if (i == 0) { ts = &InternalTemp; sd = &eeprom.ramcopy.SavedInternalTemp; }
-        if (i == 1) { ts = &ExternalTemp; sd = &eeprom.ramcopy.SavedExternalTemp; }
-        if (i == 2) { ts = &AuxTemp;      sd = &eeprom.ramcopy.SavedAuxTemp; }
+        if (i == TS_INTERNAL) { ts = &InternalTemp; sd = &eeprom.ramcopy.SavedInternalTemp; }
+        if (i == TS_EXTERNAL) { ts = &ExternalTemp; sd = &eeprom.ramcopy.SavedExternalTemp; }
+        if (i == TS_AUX) { ts = &AuxTemp;      sd = &eeprom.ramcopy.SavedAuxTemp; }
                 
         if (Found[i] && !ts->present)       // This is a new find
         {
@@ -161,6 +171,7 @@ _saved_tempdata *sd;
 void InitTempStructs(void)
 {
     InternalTemp.present = false;
+    InternalTemp.known = false;             // Will be set below depending on whether an adddress exits in EEPROM
     InternalTemp.type_s = 0;
     InternalTemp.temperature = 999;
     InternalTemp.readingStarted = false;
@@ -176,6 +187,7 @@ void InitTempStructs(void)
     clearFIR(TEMP_NTAPS, InternalTemp.fir);
     
     ExternalTemp.present = false;
+    ExternalTemp.known = false;             // Will be set below depending on whether an adddress exits in EEPROM    
     ExternalTemp.type_s = 0;
     ExternalTemp.temperature = 999;
     ExternalTemp.readingStarted = false;
@@ -191,6 +203,7 @@ void InitTempStructs(void)
     clearFIR(TEMP_NTAPS, ExternalTemp.fir);
 
     AuxTemp.present = false;
+    AuxTemp.known = false;                  // Will be set below depending on whether an adddress exits in EEPROM    
     AuxTemp.type_s = 0;
     AuxTemp.temperature = 999;
     AuxTemp.readingStarted = false;
@@ -204,13 +217,30 @@ void InitTempStructs(void)
     AuxTemp.sensorLost = false;
     AuxTemp.firstReadingAfterFound = true;
     clearFIR(TEMP_NTAPS, AuxTemp.fir);
-    
+
+    // Set addresses to what we have saved in EEPROM
+    uint16_t IntAddressSum = 0;
+    uint16_t ExtAddressSum = 0;
+    uint16_t AuxAddressSum = 0;
+    // We also sum all 8 bytes of the address, and if the total at the end is not zero, then we know what the device should be (whether detected or not)
     for( uint8_t i = 0; i < 8; i++) 
     {        
-        InternalTemp.address[i] = 0;
-        ExternalTemp.address[i] = 0;
-        AuxTemp.address[i] = 0;
+        InternalTemp.address[i] = eeprom.ramcopy.TempAddress_Int[i];
+            IntAddressSum += eeprom.ramcopy.TempAddress_Int[i];
+        
+        ExternalTemp.address[i] = eeprom.ramcopy.TempAddress_Ext[i];
+            ExtAddressSum += eeprom.ramcopy.TempAddress_Ext[i];
+        
+        AuxTemp.address[i] = eeprom.ramcopy.TempAddress_Aux[i];
+            AuxAddressSum += eeprom.ramcopy.TempAddress_Aux[i];
     }
+    
+    if (IntAddressSum > 0) InternalTemp.known = true;
+    else {DebugSerial->println(F("Internal temp not yet saved."));}
+    if (ExtAddressSum > 0) ExternalTemp.known = true;
+    else {DebugSerial->println(F("External temp not yet saved."));}
+    if (AuxAddressSum > 0) AuxTemp.known = true;
+    else {DebugSerial->println(F("Aux temp not yet saved."));}
 }
 
 
