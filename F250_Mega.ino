@@ -402,10 +402,6 @@ void loop(void)
             
             // Sleep for some time
             Sleepy::loseSomeTime(1000); 
-            // Alternatively, powerdown (will still wake again with interrupt)
-                /// flushes pending data in Serial and then enter low-power mode, wake up
-                /// with watchdog, INT0/1, or pin-change
-            // flushAndPowerDown();
 
             // Has the car turned on yet? 
             if (IsCarOn()) 
