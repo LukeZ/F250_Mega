@@ -176,6 +176,9 @@ void CheckGPS_ForData(void)
 
 void UpdateGPSData(void)
 {
+    static uint8_t speedSkips = 0;
+    const uint8_t maxSpeedSkips = 10;
+    
     // This function gets called when the car is on and Polls finds new NMEA sentence has been received and successfully parsed. 
     // All we do here is save the cleaned up data to our local variables, but we will use a different function to actually send
     // the info to the display, so we can do that at a different rate. 
@@ -221,8 +224,27 @@ void UpdateGPSData(void)
     {
         // Calculate MPH
         // ------------------------------------------------------------------------------------------------
-        GPS_Avg_Speed_Knots = fir_basic(GPS.speed, GPS_SPEED_NTAPS, GPSSpeedFIR);           // Update averaged reading (in knots)
-        MPH = constrain((uint8_t)(GPS_Avg_Speed_Knots + 0.5), 0, 255);                      // Round to nearest MPH and constrain to 255
+        GPS_Speed_MPH = (GPS.speed * 1.15078);                                              // Convert instantaneous speed from knots (GPS output) to MPH
+        if ((GPS_Speed_MPH > GPS_Speed_MPH_Last + 15.0) || (GPS_Speed_MPH > 100.0))         // Ignore speeds that exceed our last speed by 15 MPH (we can't accelerate that fast) or are over 100 MPH (our truck isn't that fast)
+        {
+            if (speedSkips > maxSpeedSkips)
+            {
+                GPS_Speed_MPH_Last = GPS_Speed_MPH;                                         // We've exceeded the number of skips, as odd as this speed reading may seem let's go with it anyway
+                speedSkips = 0;                                                             // Reset the skip count                
+            }
+            else
+            {                                                                               // The speed reading seems suspicious, let's ignore it
+                GPS_Speed_MPH = GPS_Speed_MPH_Last;                                         // In this case, ignore the current reading and stay with last
+                speedSkips += 1;                                                            // Increment the number of skipped speed readings
+            }
+        }
+        else
+        {
+            GPS_Speed_MPH_Last = GPS_Speed_MPH;                                             // Otherwise, go with the current reading and save it also to last for next time
+            speedSkips = 0;                                                                 // Reset the skip count
+        }
+        GPS_Avg_Speed_MPH = fir_basic(GPS_Speed_MPH, GPS_SPEED_NTAPS, GPSSpeedFIR);         // Update averaged reading
+        MPH = constrain((uint8_t)(GPS_Avg_Speed_MPH + 0.5), 0, 255);                        // Round to nearest MPH and constrain to 255
         if (MPH < Minimum_MPH) MPH = 0;                                                     // If below a threshold amount, we ignore the speed as GPS noise
 
         // Bearing

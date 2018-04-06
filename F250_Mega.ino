@@ -167,7 +167,9 @@
         uint8_t Max_MPH;                                            // Maximum speed obtained since the car has been turned on
         const int GPS_SPEED_NTAPS               = 5;                // How many readings to average over
         float GPSSpeedFIR[GPS_SPEED_NTAPS];                         // Filter line for GPS speed readings (in knots)
-        float GPS_Avg_Speed_Knots               = 0;                // Current average GPS speed (in knots - float)
+        float GPS_Speed_MPH                     = 0;                // Instantenous speed in MPH - float
+        float GPS_Speed_MPH_Last                = 0;                // Speed in MPH of last reading, will use for some basic sanity checking
+        float GPS_Avg_Speed_MPH                 = 0;                // Average GPS  speed in MPH - float
 
         // GPS Bearing
         const int GPS_BEARING_NTAPS             = 10;               // How many readings to average over
@@ -235,6 +237,7 @@
             uint32_t lastMeasure;                                   // When did we last record a valid measurement
             boolean firstReadingAfterFound;                         // 
             uint8_t sensorName;                                     // These will get assigned in InitTempStructs()
+            boolean shoeHorn;                                       // A kludgy work-around to shoe-horn the internal I2C temp into this struct in the event we can't find the internal temp sensor, but we will keep looking for it. 
         };
 
         _tempsensor InternalTemp;                                   // Create three global sensor structs

@@ -4,24 +4,22 @@ void StartTempReadings(void)
     // This will attempt to detect and identify any temperature sensors on the bus
     SetupOneWireSensors();                                          
     
-    // If any sensors are detected, start a temperature reading process that will repeat itself automatically
-    if (InternalTemp.present || ExternalTemp.present || AuxTemp.present) 
-    { 
-        TempHandlerEnabled = true;
-        TempHandler();                      // The handler cycles through each sensor on the bus and continuously takes readings and averages them, updates the sensor structs, etc... 
-                                            // It only needs to be called once to start (with TempHandlerEnabled = true) and from there it will keep going forever until TempHandlerEnabled = false.         
-        
-        // This function sends temperature data to the Teensy at the set interval
-        if (TimerID_TempSender == 0) TimerID_TempSender = timer.setInterval(TEMP_SEND_FREQ, SendTempInfo);            
-        else if (timer.isEnabled(TimerID_TempSender) == false) timer.enable(TimerID_TempSender);
+    // Start a temperature reading process that will repeat itself automatically
+    TempHandlerEnabled = true;
+    TempHandler();                      // The handler cycles through each sensor on the bus and continuously takes readings and averages them, updates the sensor structs, etc... 
+                                        // It only needs to be called once to start (with TempHandlerEnabled = true) and from there it will keep going forever until TempHandlerEnabled = false.         
+    
+    // This function sends temperature data to the Teensy at the set interval
+    if (TimerID_TempSender == 0) TimerID_TempSender = timer.setInterval(TEMP_SEND_FREQ, SendTempInfo);            
+    else if (timer.isEnabled(TimerID_TempSender) == false) timer.enable(TimerID_TempSender);
 
-        // This function sends all-time min/max temps to the display once on startup
-        SendDisplayAllTimeTemps();
+    // This function sends all-time min/max temps to the display once on startup
+    SendDisplayAllTimeTemps();
 
-        // This function re-checks the sensors
-        if (TimerID_TempSensorCheck == 0) TimerID_TempSensorCheck = timer.setInterval(TEMP_SENSOR_CHECK_FREQ, SetupOneWireSensors);
-        else if (timer.isEnabled(TimerID_TempSensorCheck) == false) timer.enable(TimerID_TempSensorCheck); 
-    }
+    // This function re-checks the sensors
+    if (TimerID_TempSensorCheck == 0) TimerID_TempSensorCheck = timer.setInterval(TEMP_SENSOR_CHECK_FREQ, SetupOneWireSensors);
+    else if (timer.isEnabled(TimerID_TempSensorCheck) == false) timer.enable(TimerID_TempSensorCheck); 
+
     if (DEBUG) DebugSerial->println(F("Temp Readings Started"));
 }
 
@@ -127,12 +125,13 @@ _saved_tempdata *sd;
     {
         if (i == TS_INTERNAL) { ts = &InternalTemp; sd = &eeprom.ramcopy.SavedInternalTemp; }
         if (i == TS_EXTERNAL) { ts = &ExternalTemp; sd = &eeprom.ramcopy.SavedExternalTemp; }
-        if (i == TS_AUX) { ts = &AuxTemp;      sd = &eeprom.ramcopy.SavedAuxTemp; }
+        if (i == TS_AUX)      { ts = &AuxTemp;      sd = &eeprom.ramcopy.SavedAuxTemp;      }
                 
         if (Found[i] && !ts->present)       // This is a new find
         {
             ts->present = true; 
             ts->sensorLost = false; 
+            ts->shoeHorn = false;           // Undo the shoeHorn workaround
             if (DEBUG) 
             {
                 PrintTempSensorName(ts->sensorName);
@@ -184,6 +183,7 @@ void InitTempStructs(void)
     InternalTemp.maxSessionTemp = -50;        
     InternalTemp.sensorLost = false;
     InternalTemp.firstReadingAfterFound = true;
+    InternalTemp.shoeHorn = false;
     clearFIR(TEMP_NTAPS, InternalTemp.fir);
     
     ExternalTemp.present = false;
@@ -200,6 +200,7 @@ void InitTempStructs(void)
     ExternalTemp.maxSessionTemp = -50;        
     ExternalTemp.sensorLost = false;
     ExternalTemp.firstReadingAfterFound = true;
+    ExternalTemp.shoeHorn = false;
     clearFIR(TEMP_NTAPS, ExternalTemp.fir);
 
     AuxTemp.present = false;
@@ -216,6 +217,7 @@ void InitTempStructs(void)
     AuxTemp.maxSessionTemp = -50;        
     AuxTemp.sensorLost = false;
     AuxTemp.firstReadingAfterFound = true;
+    AuxTemp.shoeHorn = false;
     clearFIR(TEMP_NTAPS, AuxTemp.fir);
 
     // Set addresses to what we have saved in EEPROM
@@ -373,7 +375,6 @@ int16_t constrained;
     celsius = (float)raw / 16.0;
     fahrenheit = celsius * 1.8 + 32.0;
 
-
     if (ts->firstReadingAfterFound)
     {
         // Fill the FIR with our first reading
@@ -404,6 +405,8 @@ int16_t constrained;
         if (ts->sensorLost == true)
         {
             ts->sensorLost = false;         // We have a reading, sensor is not lost
+            ts->present = true;
+            ts->shoeHorn = false;           // Undo the shoeHorn workaround
             if (DEBUG)
             {
                 PrintTempSensorName(ts->sensorName);
@@ -442,7 +445,7 @@ void SendTempInfo(void)
         if (i == 2) { ts = &AuxTemp;      sd = &eeprom.ramcopy.SavedAuxTemp; }
 
         // If sensor is present
-        if (ts->present)
+        if (ts->present || ts->shoeHorn)
         {   // If we have a recent reading
             if (millis() - ts->lastMeasure < INVALID_TIME)
             {   

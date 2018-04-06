@@ -32,7 +32,7 @@ void UpdateDisplay(void)
         if (ts->maxSessionTemp < 0) SendDisplay(CMD_TEMP_MAX_NEG, -ts->maxSessionTemp, ts->sensorName); // Re-minus
         if (ts->minSessionTemp > 0) SendDisplay(CMD_TEMP_MIN_POS, ts->minSessionTemp, ts->sensorName);
         if (ts->minSessionTemp < 0) SendDisplay(CMD_TEMP_MIN_NEG, -ts->minSessionTemp, ts->sensorName); // Re-minus
-        if (ts->present == false)   SendDisplay(CMD_TEMP_LOST, ts->sensorName);                         // Every now and then, remind it if a sensor is not present
+        if (ts->present == false && ts->shoeHorn == false) SendDisplay(CMD_TEMP_LOST, ts->sensorName);  // Every now and then, remind it if a sensor is not present
 
         DecideAltitudeSource();
         if (UsePressureAltitude)    SendDisplay(CMD_USE_PRESSURE_ALT, true);                            // Tell the display to use barometric altitude for the main display, 

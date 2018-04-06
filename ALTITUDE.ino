@@ -38,6 +38,64 @@ void UpdatePressureAltitude()
     inHg = convert_kPa_inHG(Pressure);
 }
 
+void ShoeHornTemperature()
+{
+float fahrenheit;
+int16_t constrained;
+_tempsensor *ts;
+
+    // Also, a kludgy work-around - if the internal One-Wire sensor is not found/working, let's post the I2C temp to it instead.
+    // It is located in the same box as the one-wire sensor anyway
+    
+    // One-Wire sensor to replace
+    ts = &InternalTemp;
+
+    if (!ts->present || ts->sensorLost)
+    {
+        if (ts->shoeHorn == false)
+        {
+            ts->shoeHorn = true;                                    // This is the flag that lets the temp-sending routine know to go ahead and send a temperature even though it thinks the sensor is lost/not present
+            if (DEBUG)
+            {
+                PrintTempSensorName(ts->sensorName);
+                DebugSerial->println(F(" One-Wire sensor replaced with internal I2C temperature."));
+            }
+        }
+
+        fahrenheit = (bmp.readTemperature() * 1.8 + 32.0);      // bmp temp is in celsius, convert to F
+
+        if (ts->firstReadingAfterFound)
+        {
+            // Fill the FIR with our first reading
+            setFIR(TEMP_NTAPS, ts->fir, fahrenheit);        
+        }
+        else
+        {
+            // Otherwise calculate the rolling average
+            fahrenheit = fir_basic(fahrenheit, TEMP_NTAPS, ts->fir);   // Update average reading
+        }
+        constrained = constrain((int16_t)(fahrenheit + 0.5), -255, 255);
+        
+        if (ts->firstReadingAfterFound == false && (abs(ts->constrained_temp - constrained) > 20))
+        {
+            // If we end up at 0 all of a sudden (or 32 exactly fahrenheit), but the prior reading was 
+            // something far away from that, ignore it. This is probably a disconnect. The constrained
+            // temperature (which is average) should not change 10 degree fahrenheit in one reading cycle.
+            // Of course it might be even more different than that if this is the first reading, but then 
+            // again the odds of raw being 0 at the same time shouldn't happen. 
+        }
+        else
+        {
+            ts->temperature = fahrenheit;
+            ts->constrained_temp = constrained;
+            // ts->readingStarted = false;      // Leave alone
+            // ts->newData = true;              // Leave alone
+            ts->lastMeasure = millis();
+        }
+        // Either way, we've done some kind of reading, so set this to false until the next time it's lost
+        ts->firstReadingAfterFound = false;
+    }
+}
 
 void SendPressureAltitude()
 {
@@ -53,8 +111,9 @@ static int16_t Pressure_Altitude_Feet_Prior = 0;
     uint8_t Pres_Tens = (uint8_t)(tmp_inHg);
     uint8_t Pres_Fract = (int16_t)(tmp_inHg * 100.0) % 100;
     SendDisplay(CMD_PRESSURE_MERCURY, Pres_Tens, Pres_Fract);
-    
-    
+
+    ShoeHornTemperature();                  // Check to see if we should substitute the I2C internal temperature sensor for the One-Wire sensor in the case it couldn't be found
+   
     if (DEBUG && Pressure_Altitude_Feet != Pressure_Altitude_Feet_Prior)
     {
         // You can get temp from that sensor as well
