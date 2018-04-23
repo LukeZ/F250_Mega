@@ -165,7 +165,7 @@
         uint8_t MPH;                                                // Miles per hour, integer, can't exceed 255. Shouldn't be a problem.
         #define Minimum_MPH                     4                   // What minimum speed below which we ignore as noise from the GPS
         uint8_t Max_MPH;                                            // Maximum speed obtained since the car has been turned on
-        const int GPS_SPEED_NTAPS               = 5;                // How many readings to average over
+        const int GPS_SPEED_NTAPS               = 4;                // How many readings to average over (at best we get 5 readings per second)
         float GPSSpeedFIR[GPS_SPEED_NTAPS];                         // Filter line for GPS speed readings (in knots)
         float GPS_Speed_MPH                     = 0;                // Instantenous speed in MPH - float
         float GPS_Speed_MPH_Last                = 0;                // Speed in MPH of last reading, will use for some basic sanity checking

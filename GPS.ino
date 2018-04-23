@@ -225,7 +225,7 @@ void UpdateGPSData(void)
         // Calculate MPH
         // ------------------------------------------------------------------------------------------------
         GPS_Speed_MPH = (GPS.speed * 1.15078);                                              // Convert instantaneous speed from knots (GPS output) to MPH
-        if ((GPS_Speed_MPH > GPS_Speed_MPH_Last + 15.0) || (GPS_Speed_MPH > 100.0))         // Ignore speeds that exceed our last speed by 15 MPH (we can't accelerate that fast) or are over 100 MPH (our truck isn't that fast)
+        if ((GPS_Speed_MPH < GPS_Speed_MPH_Last - 22.0) || (GPS_Speed_MPH > GPS_Speed_MPH_Last + 15.0) || (GPS_Speed_MPH > 95.0)) // Ignore speeds that increase or decrease too quickly, or exceed the limit of our vehicle. 
         {
             if (speedSkips > maxSpeedSkips)
             {
